@@ -1,24 +1,27 @@
 import { Global, Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
-import { ConfigModule, ConfigService } from "@nestjs/config";
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScheduleModule } from "@nestjs/schedule";
 import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
 import dataBaseConfig from "./common/database/ormconfig";
 import { AuthModule } from "./auth/auth.module";
-import { MailerModule, MailerService } from "@nestjs-modules/mailer";
+import { MailerModule} from "@nestjs-modules/mailer";
 import { createClient } from "@redis/client";
+import { OAuth2Client } from 'google-auth-library'; // Import the Google client
+
 
 @Global()
 @Module({
     imports: [
         MailerModule.forRoot({
             transport: {
-                host: process.env.SEND_GRID_HOST,
-                secure: false,
+                host: process.env.EMAIL_HOST,
+                port: Number(process.env.EMAIL_PORT),
+                secure: false, // Set to true if you use port 465
                 auth: {
-                    user: process.env.SEND_GRID_USERNAME,
-                    pass: process.env.SEND_GRID_PASSWORD,
+                    user: process.env.EMAIL_USER,
+                    pass: process.env.EMAIL_PASS,
                 },
             },
         }),
@@ -43,9 +46,17 @@ import { createClient } from "@redis/client";
                 return client;
             },
         },
+        {
+            provide: 'GOOGLE_CLIENT',
+            useFactory: (configService: ConfigService) => {
+                return new OAuth2Client(configService.get<string>('GOOGLE_CLIENT_ID'));
+            },
+            inject: [ConfigService],
+        },
     ],
     exports: [
-        "REDIS"
+        "REDIS",
+        'GOOGLE_CLIENT', // Export the Google client for use in other modules
     ]
 })
 export class AppModule {}

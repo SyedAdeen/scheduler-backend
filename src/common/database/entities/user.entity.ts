@@ -28,9 +28,8 @@ export enum UserType {
 @Entity({ name: "users" })
 export class User extends Base {
     @Column({ unique: true })
-    email?: string;
+    email: string;
 
-    @Exclude()
     @Column()
     password: string;
 
@@ -38,16 +37,16 @@ export class User extends Base {
     name: string;
 
     @Column({ default: false })
-    emailVerified: boolean;
+    verified: boolean;
 
-    @Column({ default: UserStatus.Active })
-    status: UserStatus;
+    @Column({ type: "integer", nullable: true })
+    type: number;
+
+    @Column({ nullable: true })
+    googleid: string;
 
     @DeleteDateColumn({ name: "deleted_at", nullable: true, type: "timestamp" })
     deletedAt: Date;
 
-    @Column({ nullable: true })
-    role: UserRole;
 
-    accessToken: string;
 }
