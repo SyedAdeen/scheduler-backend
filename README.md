@@ -29,10 +29,10 @@
      docker-compose up --build
      ```
 
-4. **Access the `app` Container:**
+4. **Access the `api` Container:**
    - Open a new terminal and run:
      ```bash
-     docker-compose exec app sh
+     docker-compose exec api sh
      ```
 
 5. **Run Migrations and Seed the Database:**
