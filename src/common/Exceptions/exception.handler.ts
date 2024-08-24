@@ -1,13 +1,12 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
 
-export class EmailExist extends HttpException {
+export class EmailAlreadyExistException extends HttpException {
     constructor() {
         super('Email Already Exists', HttpStatus.BAD_REQUEST);
     }
 }
 
-
-export class UserNotFound extends HttpException {
+export class UserNotFoundException extends HttpException {
     constructor() {
         super('User Not Found', HttpStatus.NOT_FOUND);
     }
@@ -25,13 +24,13 @@ export class InvalidCodeException extends HttpException {
     }
 }
 
-export class SignInWithGoogle extends HttpException {
+export class SignInWithGoogleException extends HttpException {
     constructor() {
         super('Sign in with Google', HttpStatus.BAD_REQUEST);
     }
 }
 
-export class ValidationError extends HttpException {
+export class ValidationErrorException extends HttpException {
     constructor() {
         super('Invalid User', HttpStatus.BAD_REQUEST);
     }
@@ -42,7 +41,6 @@ export class UnauthorizedException extends HttpException {
         super(message, HttpStatus.UNAUTHORIZED);
     }
 }
-
 
 export class BadRequestException extends HttpException {
     constructor(message) {

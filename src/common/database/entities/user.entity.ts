@@ -31,6 +31,7 @@ export class User extends Base {
     email: string;
 
     @Column()
+    @Exclude()
     password: string;
 
     @Column()
@@ -39,14 +40,16 @@ export class User extends Base {
     @Column({ default: false })
     verified: boolean;
 
-    @Column({ type: "integer", nullable: true })
-    type: number;
+    @Column({
+        type: "enum",
+        enum: UserType,
+        nullable: true,
+    })
+    type: UserType;
 
     @Column({ nullable: true })
     googleid: string;
 
     @DeleteDateColumn({ name: "deleted_at", nullable: true, type: "timestamp" })
     deletedAt: Date;
-
-
 }

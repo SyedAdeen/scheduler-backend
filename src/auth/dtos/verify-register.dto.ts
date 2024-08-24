@@ -1,6 +1,6 @@
 import { ApiProperty } from "@nestjs/swagger";
 
-export class VerifyDto {
+export class VerifyRegisterDto {
     @ApiProperty()
     token: string;
 

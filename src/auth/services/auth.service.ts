@@ -1,20 +1,23 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { JwtService } from "@nestjs/jwt";
 import { instanceToInstance, instanceToPlain } from "class-transformer";
 import { ConfigService } from "@nestjs/config";
 import { Repository } from "typeorm";
 import * as bcrypt from "bcrypt";
-import { User } from "@entities/user.entity";
+import { User, UserType } from "@entities/user.entity";
 import * as _ from "lodash";
-import { MailerService } from "../../common/Services/MailService";
+import { MailerService } from "../../common/services/MailService";
 import { RedisClientType } from "@redis/client";
 import { v4 as uuid } from 'uuid';
-import {InvalidCodeException, TokenExpiredException,EmailExist, UserNotFound, SignInWithGoogle, UnauthorizedException,BadRequestException} from '../../common/Exceptions/exception.handler';
+import {InvalidCodeException, TokenExpiredException, EmailAlreadyExistException, UserNotFoundException, SignInWithGoogleException, UnauthorizedException,BadRequestException} from '../../common/exceptions/exception.handler';
 import { OAuth2Client } from 'google-auth-library'; // Import the Google client
+import { classToPlain } from 'class-transformer';
+
 
 @Injectable()
 export class AuthService {
+    private readonly logger = new Logger(AuthService.name);
     constructor(
         @InjectRepository(User)
         private readonly userRepository: Repository<User>,
@@ -22,7 +25,8 @@ export class AuthService {
         private configService: ConfigService,
         private mailService: MailerService,
         @Inject("REDIS") private readonly redisClient: RedisClientType,
-        @Inject('GOOGLE_CLIENT') private readonly googleClient: OAuth2Client 
+        @Inject('GOOGLE_CLIENT') private readonly googleClient: OAuth2Client,
+
 
     ) {}
 
@@ -34,12 +38,12 @@ export class AuthService {
             
             if (user) {
                 if (user.verified) {
-                    throw new EmailExist();
+                    throw new EmailAlreadyExistException();
                 } else {
                     // Update existing user
                     user.name = name;
                     user.password = encryptedPassword;
-                    user.type = 0;
+                    user.type = UserType.User;
                     await this.userRepository.save(user);
                 }
             } else {
@@ -48,7 +52,7 @@ export class AuthService {
                     email,
                     name,
                     password: encryptedPassword,
-                    type: 0,
+                    type: UserType.User,
                     verified: false,
                 });
                 await this.userRepository.save(user);
@@ -69,11 +73,10 @@ export class AuthService {
 
             return randomToken;
         } catch (error) {
-            console.error('Error in register function:', error);
+            this.logger.error('Error in register function:', error);
             throw error;
         }
     }
-
 
     async verifyRegistration(token: string, code: number): Promise<boolean> {
         try {
@@ -89,7 +92,7 @@ export class AuthService {
 
             const user = await this.userRepository.findOne({ where: { email: payload.email }});
             if (!user) {
-                throw new Error('User not found');
+                throw new UserNotFoundException();
             }
 
             user.verified = true;
@@ -97,7 +100,7 @@ export class AuthService {
             await this.redisClient.del(token);
             return true;
         } catch (error) {
-            console.error('Error in registration verification:', error);
+            this.logger.error('Error in registration verification:', error);
             throw error;
         }
     }
@@ -108,12 +111,12 @@ export class AuthService {
             const user = await this.userRepository.findOne({ where: { email, verified: true } });
 
             if (!user) {
-                throw new UserNotFound();
+                throw new UnauthorizedException("Email is Incorrect");
             }
 
             // Check if the user has a password
             if (user.password === null) {
-                throw new SignInWithGoogle();
+                throw new SignInWithGoogleException();
             }
 
             // Verify the password
@@ -124,19 +127,18 @@ export class AuthService {
 
             // Generate a JWT token
             const token = this.jwtService.sign({id:user.id}, { secret: this.configService.get('JWT_SECRET'), expiresIn: '1h' });
-
+        const userWithoutPassword = classToPlain(user);
             return { user, token };
 
         } catch (error) {
-            console.error('Error in login function:', error);
+            this.logger.error('Error in login function:', error);
             throw error;
         }
     }
 
-
     async googleAuthService(idToken: string): Promise<{ user: User; token: string }> {
         try {
-            console.log("Client Id Of Google:", this.configService.get<string>('GOOGLE_CLIENT_ID'));
+            this.logger.log("Client Id Of Google:", this.configService.get<string>('GOOGLE_CLIENT_ID'));
             // Verify the Google ID token
             const ticket = await this.googleClient.verifyIdToken({
                 idToken,
@@ -154,13 +156,13 @@ export class AuthService {
                 if (user.googleid) {
                     // If the Google ID matches, return a JWT token
                     if (user.googleid === googleid) {
-                        console.log("Google Id Matches");
+                        this.logger.log("Google Id Matches");
                         const token = this.jwtService.sign({ id: user.id }, { secret: this.configService.get('JWT_SECRET'), expiresIn: '1h' });
                         return { user, token };
                     }
                 } else {
                     // Update existing user with Google ID if not already set
-                    console.log("Updating existing user with Google ID");
+                    this.logger.log("Updating existing user with Google ID");
                     user.googleid = googleid;
                     user.verified = true; // Mark as verified since signed in with Google
                     user.password = null;
@@ -168,14 +170,14 @@ export class AuthService {
                 }
             } else {
                 // Create a new user
-                console.log("Creating new user");
+                this.logger.log("Creating new user");
 
                 user = this.userRepository.create({
                     email,
                     name,
                     googleid,
                     verified: true,  // Google users can be considered verified,
-                    type:0,
+                    type:UserType.User,
                 });
                 await this.userRepository.save(user); // Save the new user
             }
@@ -185,7 +187,7 @@ export class AuthService {
             return { user, token };
 
         } catch (error) {
-            console.error("Error in Google Authentication Service:", error);
+            this.logger.error("Error in Google Authentication Service:", error);
             throw error;
         }
     }
@@ -198,7 +200,7 @@ export class AuthService {
 
         if(user.password===null)
         {
-            throw new SignInWithGoogle();
+            throw new SignInWithGoogleException();
         }
 
         const token = uuid(); // Generate a unique token
@@ -209,11 +211,10 @@ export class AuthService {
         };
         const jwtToken = this.jwtService.sign(payload, { secret: this.configService.get('JWT_SECRET'), expiresIn: '1h' });
         await this.redisClient.set(token, jwtToken); // Store the JWT token in Redis
-        await this.mailService.sendForgotPasswordEmail(email,parseInt(randomDigits)); // Send email with the reset code
+        await this.mailService.sendForgotPasswordEmail(email, parseInt(randomDigits)); // Send email with the reset code
 
         return token;
     }
-
 
     async verifyForgotPassword(token: string, code: number, newPassword: string): Promise<{ message: string }> {
         try {
@@ -232,7 +233,7 @@ export class AuthService {
             // Get the user by email from the payload and update the password
             const user = await this.userRepository.findOne({ where: { email: decoded.email, verified: true } });
             if (!user) {
-                throw new UnauthorizedException("User not found");
+                throw new UnauthorizedException("Email is Incorrect");
             }
 
             // Encrypt the new password and update the user record
@@ -249,7 +250,6 @@ export class AuthService {
         }
     }
 
-
     async validate(email: string, password: string): Promise<User> {
         const user = await this.userRepository.findOneBy({ email });
         if (!user) {
@@ -262,7 +262,6 @@ export class AuthService {
         return instanceToInstance(user);
     }
 
- 
     async getByEmail(email: string) {
         return this.userRepository.findOneBy({ email });
     }
