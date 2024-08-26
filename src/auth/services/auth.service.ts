@@ -4,7 +4,7 @@ import { JwtService } from "@nestjs/jwt";
 import { instanceToInstance, instanceToPlain } from "class-transformer";
 import { ConfigService } from "@nestjs/config";
 import { Repository } from "typeorm";
-import * as bcrypt from "bcrypt";
+import * as bcrypt from "argon2";
 import { User, UserType } from "@entities/user.entity";
 import * as _ from "lodash";
 import { MailerService } from "../../common/services/MailService";
@@ -34,7 +34,7 @@ export class AuthService {
         try {
             // Check if user already exists
             let user = await this.userRepository.findOne({ where: { email }});
-            const encryptedPassword = await bcrypt.hash(password, 10);
+            const encryptedPassword = await bcrypt.hash(password);
             
             if (user) {
                 if (user.verified) {
@@ -120,7 +120,7 @@ export class AuthService {
             }
 
             // Verify the password
-            const isPasswordValid = await bcrypt.compare(password, user.password);
+            const isPasswordValid = await bcrypt.verify(user.password, password);
             if (!isPasswordValid) {
                 throw new UnauthorizedException("Incorrect Password");
             }
@@ -237,7 +237,7 @@ export class AuthService {
             }
 
             // Encrypt the new password and update the user record
-            const hashedPassword = await bcrypt.hash(newPassword, 10);
+            const hashedPassword = await bcrypt.hash(newPassword);
             user.password = hashedPassword;
             await this.userRepository.save(user);
 
@@ -255,7 +255,7 @@ export class AuthService {
         if (!user) {
             return null;
         }
-        const matched = await bcrypt.compare(password, user.password);
+        const matched = await bcrypt.verify(user.password, password);
         if (!matched) {
             return null;
         }
