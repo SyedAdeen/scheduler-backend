@@ -25,7 +25,7 @@
     "typeorm": "node --require ts-node/register ./node_modules/typeorm/cli.js -d src/common/database/ormconfig.ts"
   },
   "dependencies": {
-    "@nestjs-modules/mailer": "^1.6.1",
+    "@nestjs-modules/mailer": "^2.0.2",
     "@nestjs/axios": "^0.1.0",
     "@nestjs/common": "^9.0.5",
     "@nestjs/config": "^2.2.0",
@@ -39,6 +39,7 @@
     "@nestjs/typeorm": "^10.0.2",
     "@nestjs/websockets": "^10.4.1",
     "@redis/client": "^1.2.0",
+    "@types/ioredis": "^5.0.0",
     "argon2": "^0.41.0",
     "aws-sdk": "^2.1201.0",
     "class-transformer": "^0.5.1",
@@ -108,6 +109,7 @@
     "testEnvironment": "node"
   },
   "resolutions": {
-    "jackspeak": "2.1.1"
+    "wrap-ansi": "7.0.0",
+    "string-width": "4.1.0"
   }
 }
