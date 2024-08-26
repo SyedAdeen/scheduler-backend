@@ -7,6 +7,8 @@ import { AuthService } from "./services/auth.service";
 import { User } from "@entities/user.entity";
 import { LocalUserStrategy } from "./strategies/local-user.strategy";
 import { JwtStrategy } from "./strategies/jwt.strategy";
+import { MailerService } from "../common/services/MailService";
+
 
 @Module({
     imports: [
@@ -19,6 +21,8 @@ import { JwtStrategy } from "./strategies/jwt.strategy";
         LocalUserStrategy,
         JwtStrategy,
         AuthService,
+        MailerService
+
     ],
     exports:[AuthService]
 })
