@@ -7,7 +7,7 @@ import { AuthService } from "./services/auth.service";
 import { User } from "@entities/user.entity";
 import { LocalUserStrategy } from "./strategies/local-user.strategy";
 import { JwtStrategy } from "./strategies/jwt.strategy";
-import { MailerService } from "../common/services/MailService";
+import { MailerService } from "../common/services/mail.service";
 
 
 @Module({

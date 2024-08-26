@@ -7,7 +7,7 @@ import { Repository } from "typeorm";
 import * as bcrypt from "argon2";
 import { User, UserType } from "@entities/user.entity";
 import * as _ from "lodash";
-import { MailerService } from "../../common/services/MailService";
+import { MailerService } from "../../common/services/mail.service";
 import { RedisClientType } from "@redis/client";
 import { v4 as uuid } from 'uuid';
 import {InvalidCodeException, TokenExpiredException, EmailAlreadyExistException, UserNotFoundException, SignInWithGoogleException, UnauthorizedException,BadRequestException} from '../../common/exceptions/exception.handler';
