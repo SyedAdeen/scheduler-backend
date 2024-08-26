@@ -10,7 +10,15 @@ import * as _ from "lodash";
 import { MailerService } from "../../common/services/mail.service";
 import { RedisClientType } from "@redis/client";
 import { v4 as uuid } from 'uuid';
-import {InvalidCodeException, TokenExpiredException, EmailAlreadyExistException, UserNotFoundException, SignInWithGoogleException, UnauthorizedException,BadRequestException} from '../../common/exceptions/exception.handler';
+import {
+    InvalidCodeException, 
+    TokenExpiredException, 
+    EmailAlreadyExistException, 
+    UserNotFoundException, 
+    SignInWithGoogleException, 
+    UnauthorizedException,
+    BadRequestException
+} from "../../common/exceptions";
 import { OAuth2Client } from 'google-auth-library'; // Import the Google client
 import { classToPlain } from 'class-transformer';
 
