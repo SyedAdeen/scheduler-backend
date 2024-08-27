@@ -18,7 +18,7 @@ const isDevelopment = process.env.NODE_ENV !== 'production';
 export default new DataSource({
     type: "postgres",
     host: config.host,
-    ssl: config.ssl === "true",
+    ssl: config.ssl === "false",
     port: parseInt(config.port),
     username: config.user,
     password: config.password,
@@ -28,9 +28,10 @@ export default new DataSource({
     dropSchema: false,
     logging: ["warn", "error"],
     migrations: ["dist/common/database/migrations/**/*.js"],
-    extra: config.ssl === "true" ? {
+    extra: config.ssl === "false" ? {
         ssl: {
             rejectUnauthorized: false,
         },
     } : {},
 });
+

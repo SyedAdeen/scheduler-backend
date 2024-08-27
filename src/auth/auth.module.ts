@@ -7,10 +7,7 @@ import { AuthService } from "./services/auth.service";
 import { User } from '../common/database/entities/user.entity';
 import { LocalUserStrategy } from "./strategies/local-user.strategy";
 import { JwtStrategy } from "./strategies/jwt.strategy";
-<<<<<<< Updated upstream
-=======
-import { MailerService } from "../common/services/MailService";
->>>>>>> Stashed changes
+import { MailerService } from "../common/services/mail.service"; // Corrected import path
 
 @Module({
     imports: [
@@ -28,12 +25,9 @@ import { MailerService } from "../common/services/MailService";
     controllers: [AuthController],
     providers: [
         AuthService,
-<<<<<<< Updated upstream
-=======
         JwtStrategy,
         LocalUserStrategy,
         MailerService,
->>>>>>> Stashed changes
     ],
     exports: [AuthService, JwtStrategy],
 })

@@ -1,51 +1,63 @@
-version: "3.5"
 services:
-    api:
-        build:
-            context: ../
-            dockerfile: ./docker/api/Dockerfile
-        volumes:
-            - "${API_FOLDER_PATH}/src:/app/src"
-        ports:
-            - 8888:8080
-        networks:
-            - postflow-network
-    db:
-        build:
-            context: ../
-            dockerfile: ./docker/db/Dockerfile
-        restart: always
-        volumes:
-            - db-data-backup:/var/lib/postgresql/data
-        environment:
-            POSGRES_USER: postgres
-            POSTGRES_PASSWORD: password
-            POSTGRES_DB: postflow
-        ports:
-            - 5220:5432
-        networks:
-            - postflow-network
-    redis:
-      image: "redis:alpine"
-      command: [ "redis-server", "--bind", "redis", "--port", "6379" ]
-      volumes:
-        - redis-data:/data
-      ports:
-        - 6401:6379
-      networks:
-        - postflow-network
-    redis-commander:
-      image: rediscommander/redis-commander:latest
-      restart: always
-      environment:
-        - REDIS_HOSTS=local:redis:6379
-      ports:
-        - 8183:8081
-      networks:
-        - postflow-network
+  api:
+    build:
+      context: ../
+      dockerfile: ./docker/api/Dockerfile
+    volumes:
+      - "${API_FOLDER_PATH}/src:/app/src"
+    ports:
+      - "${PORT:-3001}:${PORT:-3001}"  # Align container's port with the exposed port
+    networks:
+      - postflow-network
+    depends_on:
+      - db
+      - redis
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+    env_file:
+      - .env
+
+  db:
+    build:
+      context: ../
+      dockerfile: ./docker/db/Dockerfile
+    restart: always
+    volumes:
+      - db-data-backup:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: "${DB_USERNAME:-postgres}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD:-password}"
+      POSTGRES_DB: "${DB_NAME:-postflow}"
+    ports:
+      - "${DB_PORT:-5432}:${DB_PORT:-5432}"  # Map the correct PostgreSQL port
+    networks:
+      - postflow-network
+
+  redis:
+    image: "redis:alpine"
+    command: [ "redis-server", "--bind", "redis", "--port", "6379" ]
+    volumes:
+      - redis-data:/data
+    ports:
+      - "${REDIS_PORT:-6379}:6379"  # Ensure Redis port mapping is correct
+    networks:
+      - postflow-network
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    restart: always
+    environment:
+      REDIS_HOSTS: "local:redis:${REDIS_PORT:-6379}"
+    ports:
+      - "${REDIS_COMMANDER_PORT:-8183}:8081"
+    networks:
+      - postflow-network
+
 networks:
-    postflow-network:
-        external: false
+  postflow-network:
+    driver: bridge
+    external: false
+
 volumes:
-    db-data-backup:
-    redis-data:
+  db-data-backup:
+  redis-data:

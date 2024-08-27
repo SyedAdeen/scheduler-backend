@@ -16,7 +16,6 @@ async function bootstrap() {
     .setVersion('1.0.0')
     .addBearerAuth(
       { 
-        // I was also testing it without prefix 'Bearer ' before the JWT
         description: `Please enter token: "JWT"`,
         name: 'Authorization',
         bearerFormat: 'Bearer',

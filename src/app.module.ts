@@ -1,46 +1,26 @@
 import { Global, Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
-import { ConfigModule, ConfigService } from "@nestjs/config";
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScheduleModule } from "@nestjs/schedule";
 import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
 import dataBaseConfig from "./common/database/ormconfig";
 import { AuthModule } from "./auth/auth.module";
-<<<<<<< Updated upstream
-import { MailerModule, MailerService } from "@nestjs-modules/mailer";
-import { createClient } from "@redis/client";
-=======
 import { IntegrationModule } from "./integration/integration.module";
 import { MailerModule } from "@nestjs-modules/mailer";
 import { createClient } from "@redis/client";
 import { OAuth2Client } from 'google-auth-library'; // Import the Google client
 import { UtilitiesModule } from './common/utilities/utilities.module';
 
->>>>>>> Stashed changes
-
 @Global()
 @Module({
     imports: [
-<<<<<<< Updated upstream
-        MailerModule.forRoot({
-            transport: {
-                host: process.env.SEND_GRID_HOST,
-                secure: false,
-                auth: {
-                    user: process.env.SEND_GRID_USERNAME,
-                    pass: process.env.SEND_GRID_PASSWORD,
-                },
-            },
-        }),
-        ConfigModule.forRoot({ isGlobal: true }),
-=======
         ConfigModule.forRoot({ isGlobal: true }), // Ensure ConfigModule is global
->>>>>>> Stashed changes
         TypeOrmModule.forRoot(dataBaseConfig.options),
         ScheduleModule.forRoot(),
         AuthModule,
         IntegrationModule,
-        UtilitiesModule,  
+        UtilitiesModule,
         MailerModule.forRootAsync({
             imports: [ConfigModule],
             inject: [ConfigService],
@@ -48,7 +28,7 @@ import { UtilitiesModule } from './common/utilities/utilities.module';
                 transport: {
                     host: configService.get<string>('EMAIL_HOST'),
                     port: Number(configService.get<string>('EMAIL_PORT')),
-                    secure: false, 
+                    secure: false, // Set to true if you use port 465
                     auth: {
                         user: configService.get<string>('EMAIL_USER'),
                         pass: configService.get<string>('EMAIL_PASS'),
@@ -73,14 +53,17 @@ import { UtilitiesModule } from './common/utilities/utilities.module';
                 return client;
             },
         },
+        {
+            provide: 'GOOGLE_CLIENT',
+            useFactory: (configService: ConfigService) => {
+                return new OAuth2Client(configService.get<string>('GOOGLE_CLIENT_ID'));
+            },
+            inject: [ConfigService],
+        },
     ],
     exports: [
-<<<<<<< Updated upstream
-        "REDIS"
-=======
         "REDIS",
-        'GOOGLE_CLIENT', 
->>>>>>> Stashed changes
+        'GOOGLE_CLIENT', // Export the Google client for use in other modules
     ]
 })
 export class AppModule {}
