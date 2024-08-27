@@ -21,7 +21,7 @@ export class IntegrationController {
   async getIntegrationsForUser(
     @Req() request: any // Inject the request object
   ): Promise<Integration[]> {
-    const user = request.user;  // The user is already set by AuthMiddleware
+    const user = request.user; 
     const integrations = await this.integrationService.getIntegrationsForUser(user.id);
     return integrations;
   }
