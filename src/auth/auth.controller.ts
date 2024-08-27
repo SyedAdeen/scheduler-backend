@@ -21,8 +21,16 @@ import { SignupDto } from "./dtos/signup.dto";
 @ApiTags("Auth")
 export class AuthController {
     constructor(private authService: AuthService) {}
+<<<<<<< Updated upstream
 
     @Post("auth/register")
+=======
+ 
+    @Post('register')
+    @ApiOperation({ summary: 'Register a new user' })
+    @ApiResponse({ status: 201, description: 'User successfully registered.' })
+    @ApiResponse({ status: 400, description: 'Email Already Exists' })
+>>>>>>> Stashed changes
     async register(@Body() signupDto: SignupDto) {
 
     }

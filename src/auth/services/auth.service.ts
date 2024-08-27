@@ -7,8 +7,16 @@ import { Repository } from "typeorm";
 import * as bcrypt from "bcrypt";
 import { User } from "@entities/user.entity";
 import * as _ from "lodash";
+<<<<<<< Updated upstream
 import { MailerService } from "@nestjs-modules/mailer";
 import { RedisClientType } from "@redis/client";
+=======
+import { MailerService } from "../../common/services/MailService";
+import { RedisClientType } from "@redis/client";
+import { v4 as uuid } from 'uuid';
+import {InvalidCodeException, TokenExpiredException,EmailExist, UserNotFound, SignInWithGoogle, UnauthorizedException,BadRequestException} from '../../common/exceptions/exception.handler';
+import { OAuth2Client } from 'google-auth-library'; // Import the Google client
+>>>>>>> Stashed changes
 
 @Injectable()
 export class AuthService {
@@ -33,6 +41,7 @@ export class AuthService {
         return instanceToInstance(user);
     }
 
+<<<<<<< Updated upstream
     async authenticate(username: string, password: string): Promise<User> {
         const user = await this.validate(username, password);
         if (!user) {
@@ -64,6 +73,11 @@ export class AuthService {
 
     async getByEmail(email: string) {
         return this.userRepository.findOneBy({ email });
+=======
+ 
+    async getById(id: number) {
+        return this.userRepository.findOneBy({ id });
+>>>>>>> Stashed changes
     }
 
     async getUser(userId: number): Promise<User> {
