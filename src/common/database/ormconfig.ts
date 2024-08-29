@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { DataSource } from "typeorm";
+import { join } from "path";
 
 const config = {
     host: process.env.DB_HOST,
@@ -18,7 +19,7 @@ export default new DataSource({
     username: config.user,
     password: config.password,
     database: config.database,
-    entities: ["dist/**/*.entity.js"],
+    entities: [join(__dirname, '**', '*.entity.{ts,js}')],
     synchronize: false,
     dropSchema: false,
     logging: ["warn", "error"],

@@ -4,21 +4,13 @@ import { JwtService } from "@nestjs/jwt";
 import { instanceToInstance, instanceToPlain } from "class-transformer";
 import { ConfigService } from "@nestjs/config";
 import { Repository } from "typeorm";
-import * as bcrypt from "argon2";
+import * as bcrypt from "bcrypt";
 import { User, UserType } from "@entities/user.entity";
 import * as _ from "lodash";
 import { MailerService } from "../../common/services/mail.service";
 import { RedisClientType } from "@redis/client";
 import { v4 as uuid } from 'uuid';
-import {
-    InvalidCodeException, 
-    TokenExpiredException, 
-    EmailAlreadyExistException, 
-    UserNotFoundException, 
-    SignInWithGoogleException, 
-    UnauthorizedException,
-    BadRequestException
-} from "../../common/exceptions";
+import {InvalidCodeException, TokenExpiredException, EmailAlreadyExistException, UserNotFoundException, SignInWithGoogleException, UnauthorizedException,BadRequestException} from '../../common/exceptions/index';
 import { OAuth2Client } from 'google-auth-library'; // Import the Google client
 import { classToPlain } from 'class-transformer';
 
@@ -42,7 +34,7 @@ export class AuthService {
         try {
             // Check if user already exists
             let user = await this.userRepository.findOne({ where: { email }});
-            const encryptedPassword = await bcrypt.hash(password);
+            const encryptedPassword = await bcrypt.hash(password, 10);
             
             if (user) {
                 if (user.verified) {
@@ -128,7 +120,7 @@ export class AuthService {
             }
 
             // Verify the password
-            const isPasswordValid = await bcrypt.verify(user.password, password);
+            const isPasswordValid = await bcrypt.compare(password, user.password);
             if (!isPasswordValid) {
                 throw new UnauthorizedException("Incorrect Password");
             }
@@ -245,7 +237,7 @@ export class AuthService {
             }
 
             // Encrypt the new password and update the user record
-            const hashedPassword = await bcrypt.hash(newPassword);
+            const hashedPassword = await bcrypt.hash(newPassword, 10);
             user.password = hashedPassword;
             await this.userRepository.save(user);
 
@@ -263,15 +255,15 @@ export class AuthService {
         if (!user) {
             return null;
         }
-        const matched = await bcrypt.verify(user.password, password);
+        const matched = await bcrypt.compare(password, user.password);
         if (!matched) {
             return null;
         }
         return instanceToInstance(user);
     }
 
-    async getByEmail(email: string) {
-        return this.userRepository.findOneBy({ email });
+    async getById(id: number) {
+        return this.userRepository.findOneBy({ id });
     }
 
 

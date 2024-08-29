@@ -6,29 +6,36 @@ import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
 import dataBaseConfig from "./common/database/ormconfig";
 import { AuthModule } from "./auth/auth.module";
-import { MailerModule} from "@nestjs-modules/mailer";
+import { IntegrationModule } from "./integration/integration.module";
+import { MailerModule } from "@nestjs-modules/mailer";
 import { createClient } from "@redis/client";
 import { OAuth2Client } from 'google-auth-library'; // Import the Google client
-
+import { UtilitiesModule } from './common/utilities/utilities.module';
 
 @Global()
 @Module({
     imports: [
-        MailerModule.forRoot({
-            transport: {
-                host: process.env.EMAIL_HOST,
-                port: Number(process.env.EMAIL_PORT),
-                secure: false, // Set to true if you use port 465
-                auth: {
-                    user: process.env.EMAIL_USER,
-                    pass: process.env.EMAIL_PASS,
-                },
-            },
-        }),
-        ConfigModule.forRoot({ isGlobal: true }),
+        ConfigModule.forRoot({ isGlobal: true }), // Ensure ConfigModule is global
         TypeOrmModule.forRoot(dataBaseConfig.options),
         ScheduleModule.forRoot(),
         AuthModule,
+        IntegrationModule,
+        UtilitiesModule,
+        MailerModule.forRootAsync({
+            imports: [ConfigModule],
+            inject: [ConfigService],
+            useFactory: async (configService: ConfigService) => ({
+                transport: {
+                    host: configService.get<string>('EMAIL_HOST'),
+                    port: Number(configService.get<string>('EMAIL_PORT')),
+                    secure: false, // Set to true if you use port 465
+                    auth: {
+                        user: configService.get<string>('EMAIL_USER'),
+                        pass: configService.get<string>('EMAIL_PASS'),
+                    },
+                },
+            }),
+        }),
     ],
     controllers: [AppController],
     providers: [

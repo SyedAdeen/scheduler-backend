@@ -1,29 +1,34 @@
 import { Module } from "@nestjs/common";
-import { ConfigModule } from "@nestjs/config";
+import { ConfigModule, ConfigService } from "@nestjs/config";
 import { JwtModule } from "@nestjs/jwt";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./services/auth.service";
-import { User } from "@entities/user.entity";
+import { User } from '../common/database/entities/user.entity';
 import { LocalUserStrategy } from "./strategies/local-user.strategy";
 import { JwtStrategy } from "./strategies/jwt.strategy";
-import { MailerService } from "../common/services/mail.service";
-
+import { MailerService } from "../common/services/mail.service"; // Corrected import path
 
 @Module({
     imports: [
         ConfigModule.forRoot({ isGlobal: true }),
-        JwtModule.register({}),
+        JwtModule.registerAsync({
+            imports: [ConfigModule],
+            inject: [ConfigService],
+            useFactory: async (configService: ConfigService) => ({
+                secret: configService.get<string>('JWT_SECRET'),
+                signOptions: { expiresIn: '1h' },  // Set your preferred expiry
+            }),
+        }),
         TypeOrmModule.forFeature([User]),
     ],
     controllers: [AuthController],
     providers: [
-        LocalUserStrategy,
-        JwtStrategy,
         AuthService,
-        MailerService
-
+        JwtStrategy,
+        LocalUserStrategy,
+        MailerService,
     ],
-    exports:[AuthService]
+    exports: [AuthService, JwtStrategy],
 })
 export class AuthModule {}

@@ -12,11 +12,21 @@ async function bootstrap() {
     app.enableCors();
     useContainer(app.select(AppModule), { fallbackOnErrors: true });
     const config = new DocumentBuilder()
-        .setTitle("PostFlow")
-        .setDescription("PostFlow API Documentation")
-        .setVersion("1.0")
-        .addBearerAuth()
-        .build();
+    .setTitle('SWAGGER API')
+    .setVersion('1.0.0')
+    .addBearerAuth(
+      { 
+        description: `Please enter token: "JWT"`,
+        name: 'Authorization',
+        bearerFormat: 'Bearer',
+        scheme: 'Bearer',
+        type: 'http', 
+        in: 'Header'
+      },
+      'access-token', 
+    )
+    .build();
+
     const document = SwaggerModule.createDocument(app, config);
     app.useGlobalPipes(new ValidationPipe());
     SwaggerModule.setup("docs", app, document);
