@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger } from "@nestjs/common";
+import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { Integration } from "@entities/integration.entity";
@@ -47,7 +47,7 @@ export class IntegrationService {
     });
 
     if (!integration) {
-      throw new BadRequestException('Integration not found');
+      throw new NotFoundException('Integration not found');
     }
 
     // Define your client ID and redirect URL (You might want to fetch these from the integration entity or config)
@@ -62,7 +62,7 @@ export class IntegrationService {
     const port = this.configService.get<string>('PORT', '3001'); 
 
     // Construct the dynamic redirect_uri
-    const redirect_uri = `http://${host}:${port}${redirectUri}`;
+    const redirect_uri = `${host}:${port}${redirectUri}`;
 
     // Generate the authorization URL
     const authUrl = `${oauthUri}?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirect_uri)}&response_type=code&state=${encodeURIComponent(state)}`;
@@ -78,7 +78,7 @@ export class IntegrationService {
     });
     
     if (result.affected === 0) {
-      throw new BadRequestException(`No UserIntegration found with Integration ID: ${integrationId} and User ID: ${userId}`);
+      throw new NotFoundException(`No UserIntegration found with Integration ID: ${integrationId} and User ID: ${userId}`);
     }
 
     return result.affected>0;

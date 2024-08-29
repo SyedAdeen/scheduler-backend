@@ -62,8 +62,6 @@ export class IntegrationController {
   ): Promise<boolean> {
     const user = request.user; 
     const integrationId = params.integrationId; // Extracting integrationId from the DTO
-
-    const success = await this.integrationService.deleteUserIntegration(user.id, integrationId);
-    return success;
+    return this.integrationService.deleteUserIntegration(user.id, integrationId);
   }
 }

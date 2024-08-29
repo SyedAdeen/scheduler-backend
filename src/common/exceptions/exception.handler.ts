@@ -6,13 +6,6 @@ export class EmailExist extends HttpException {
     }
 }
 
-
-export class UserNotFound extends HttpException {
-    constructor() {
-        super('User Not Found', HttpStatus.NOT_FOUND);
-    }
-}
-
 export class TokenExpiredException extends HttpException {
     constructor() {
         super('Token has expired', HttpStatus.UNAUTHORIZED);
@@ -25,7 +18,7 @@ export class InvalidCodeException extends HttpException {
     }
 }
 
-export class SignInWithGoogle extends HttpException {
+export class SignInWithGoogleException extends HttpException {
     constructor() {
         super('Sign in with Google', HttpStatus.BAD_REQUEST);
     }
