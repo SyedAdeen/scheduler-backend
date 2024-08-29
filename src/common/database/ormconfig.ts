@@ -1,8 +1,6 @@
 import "dotenv/config";
 import { DataSource } from "typeorm";
-import { Integration } from "./entities/integration.entity"; // Adjust the path as needed
-import {User} from './entities/user.entity';
-import {UserIntegration} from './entities/user-integration.entity';
+import { join } from "path";
 
 const config = {
     host: process.env.DB_HOST,
@@ -13,8 +11,6 @@ const config = {
     ssl: process.env.DB_SSL
 };
 
-const isDevelopment = process.env.NODE_ENV !== 'production';
-
 export default new DataSource({
     type: "postgres",
     host: config.host,
@@ -23,7 +19,7 @@ export default new DataSource({
     username: config.user,
     password: config.password,
     database: config.database,
-    entities: isDevelopment ? [User, Integration, UserIntegration] : ["dist/**/*.entity.js"],
+    entities: [join(__dirname, '**', '*.entity.{ts,js}')],
     synchronize: false,
     dropSchema: false,
     logging: ["warn", "error"],
