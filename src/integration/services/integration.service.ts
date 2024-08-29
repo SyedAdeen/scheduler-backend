@@ -6,7 +6,6 @@ import { UserIntegration } from "@entities/user-integration.entity";
 import { ConfigService } from "@nestjs/config";
 import { EncryptionService } from '../../common/utilities/encryption.utlis';
 
-
 @Injectable()
 export class IntegrationService {
   constructor(
@@ -23,7 +22,6 @@ export class IntegrationService {
 
   ) {}
 
-  
   async getIntegrationsForUser(userId: number): Promise<any[]> {
     const queryBuilder = this.integrationRepository
     .createQueryBuilder('integration')

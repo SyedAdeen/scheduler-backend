@@ -12,7 +12,6 @@ import { IntegrationDto } from "./dtos/get-integration.dto";
 export class IntegrationController {
   constructor(private readonly integrationService: IntegrationService) {}
 
-
   @Get("")
   @ApiOperation({ summary: "Get integrations for a specific user" })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
@@ -28,7 +27,6 @@ export class IntegrationController {
     const integrations = await this.integrationService.getIntegrationsForUser(user.id);
     return integrations;
   }
-
 
   @Get('/:integrationId')
   @ApiOperation({ summary: 'Get Authorization URL for a specific integration' })
@@ -49,7 +47,6 @@ export class IntegrationController {
     return authUrl;
   }
  
-
   @Delete('/:integrationId')
   @ApiOperation({ summary: 'Delete User Integration' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
