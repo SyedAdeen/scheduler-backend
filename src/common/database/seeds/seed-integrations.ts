@@ -39,7 +39,8 @@ async function seedIntegrations() {
         linkedinIntegration.metadata = {
             clientId: encryptedLinkedInClientId,
             clientSecret: encryptedLinkedInClientSecret,
-            redirectUrl: "https://www.linkedin.com/home?originalSubdomain=pk"
+            redirectUri:"/integrations/exchange-code",
+            oauthUri:"https://www.linkedin.com/oauth/v2/authorization"
         };
 
         const facebookIntegration = new Integration();
@@ -48,7 +49,9 @@ async function seedIntegrations() {
         facebookIntegration.metadata = {
             clientId: encryptedFacebookClientId,
             clientSecret: encryptedFacebookClientSecret,
-            redirectUrl:"https://developers.facebook.com/"
+            redirectUri:"/integrations/exchange-code",
+            oauthUri:"https://www.facebook.com/v10.0/dialog/oauth"
+
         };
 
         // Save to the database

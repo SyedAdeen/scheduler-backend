@@ -1,6 +1,6 @@
-import { ApiProperty } from "@nestjs/swagger";
+import { ApiProperty } from '@nestjs/swagger';
 
-export class GetIntegrationDto {
-    @ApiProperty()
-    userId: number;
+export class IntegrationDto {
+  @ApiProperty()
+  integrationId: number; 
 }
