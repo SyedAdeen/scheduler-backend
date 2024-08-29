@@ -31,7 +31,7 @@
      docker-compose up --build
      ```
 
-4. **Access the `app` Container:**
+4. **Access the `api` Container:**
    - Open a new terminal and run:
      ```bash
      docker-compose exec api sh
