@@ -8,6 +8,8 @@
 - **Forgot Password Endpoint:** `/auth/forgot-password`
 - **Forgot Password Verification Endpoint:** `/auth/forgot-password/verify`
 - **Get Integrations Endpoint:** `/integrations`
+- **Get Authorization Url Endpoint:** `/integrations/:integrationId`
+- **Delete User Integration Endpoint:** `/integrations/:integrationId`
 - **Swagger:** `/docs`
 
 ### Steps to Start the Project:
@@ -29,10 +31,10 @@
      docker-compose up --build
      ```
 
-4. **Access the `app` Container:**
+4. **Access the `api` Container:**
    - Open a new terminal and run:
      ```bash
-     docker-compose exec app sh
+     docker-compose exec api sh
      ```
 
 5. **Run Migrations and Seed the Database:**

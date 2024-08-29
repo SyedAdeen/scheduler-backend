@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { IntegrationController } from "./integration.controller";
+import { EncryptionService } from "src/common/utilities/encryption.utlis";
 import { IntegrationService } from "./services/integration.service";
 import { Integration } from '@entities/integration.entity';
 import { UserIntegration } from '@entities/user-integration.entity';
@@ -13,8 +14,8 @@ import { UserIntegration } from '@entities/user-integration.entity';
     ],
     controllers: [IntegrationController],
     providers: [
-        IntegrationService,
+        IntegrationService,EncryptionService
     ],
-    exports: [IntegrationService]
+    exports: [IntegrationService,EncryptionService]
 })
 export class IntegrationModule {}

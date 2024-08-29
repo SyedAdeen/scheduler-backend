@@ -4,7 +4,7 @@ import { JwtService } from "@nestjs/jwt";
 import { instanceToInstance, instanceToPlain } from "class-transformer";
 import { ConfigService } from "@nestjs/config";
 import { Repository } from "typeorm";
-import * as bcrypt from "bcrypt";
+import * as bcrypt from "bcryptjs";
 import { User, UserType } from "@entities/user.entity";
 import * as _ from "lodash";
 import { MailerService } from "../../common/services/mail.service";
