@@ -34,7 +34,7 @@ export class IntegrationController {
   @ApiBearerAuth('access-token') 
   @UseGuards(JwtAuthGuard)  
   @ApiOperation({ summary: 'Get Authorization URL for a specific integration' })
-  @ApiResponse({ status: 401, description: 'Unauthorized I am herre' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 400, description: 'Bad Request, Integration Not Found' })
   @ApiResponse({
     status: 200,

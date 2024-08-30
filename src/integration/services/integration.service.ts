@@ -6,7 +6,6 @@ import { Integration } from "@entities/integration.entity";
 import { UserIntegration } from "@entities/user-integration.entity";
 import { ConfigService } from "@nestjs/config";
 import { EncryptionService } from '../../common/utilities/encryption.utlis';
-import { instanceToPlain } from "class-transformer";
 
 @Injectable()
 export class IntegrationService {
@@ -18,12 +17,8 @@ export class IntegrationService {
     private readonly userIntegrationRepository: Repository<UserIntegration>,
 
     private readonly configService: ConfigService,
-
     private readonly encryptionService: EncryptionService,
-
     private readonly httpservice : HttpService
-
-
   ) {}
 
   async getIntegrationsForUser(userId: number): Promise<any[]> {
@@ -61,10 +56,8 @@ export class IntegrationService {
 
     // Create a state object containing the userId and integrationId
     const state = JSON.stringify({ userId, integrationId });
-
     const host = this.configService.get<string>('HOST', '127.0.0.1'); 
     const port = this.configService.get<string>('PORT', '3001'); 
-    
     const scope = integration.metadata.scope;
 
     // Construct the dynamic redirect_uri
@@ -109,14 +102,13 @@ export class IntegrationService {
     const port = this.configService.get<string>('PORT', '3001'); 
     const redirect_uri = `${host}:${port}${redirectUri}`;
  
-
     // Make the request to exchange code for tokens
     try {
       const response = await this.httpservice
         .post(tokenUri, new URLSearchParams({
           grant_type: 'authorization_code',
-          code: code,
-          redirect_uri: redirect_uri,
+          code,
+          redirect_uri,
           client_id: clientId,
           client_secret: clientSecret,
         }).toString(), {

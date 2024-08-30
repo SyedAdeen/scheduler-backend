@@ -4,6 +4,7 @@ import { Exclude } from 'class-transformer';
 import { Base } from './base.entity'; 
 import { User } from './user.entity'; 
 import { Integration } from './integration.entity'; 
+import { UserIntegrationMetadata } from '../interfaces/user-integrations.metadata.interface';
  
 
 @Entity({ name: 'user_integrations' })
@@ -18,7 +19,7 @@ export class UserIntegration extends Base {
 
   @Exclude()
   @Column({ type: 'jsonb', nullable: true })
-  metadata: { accessToken: string; refreshToken: string, expiresIn: string }; // Metadata as JSON containing access token and refresh token
+  metadata: UserIntegrationMetadata;
 
   @DeleteDateColumn({ name: 'deleted_at', nullable: true, type: 'timestamp' })
   deletedAt: Date; // Timestamp for soft deletion
