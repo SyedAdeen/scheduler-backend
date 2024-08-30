@@ -12,7 +12,6 @@ import { RedisClientType } from "@redis/client";
 import { v4 as uuid } from 'uuid';
 import {InvalidCodeException, TokenExpiredException, EmailAlreadyExistException, UserNotFoundException, SignInWithGoogleException, UnauthorizedException,BadRequestException} from '../../common/exceptions/index';
 import { OAuth2Client } from 'google-auth-library'; // Import the Google client
-import { classToPlain } from 'class-transformer';
 
 
 @Injectable()
@@ -127,7 +126,7 @@ export class AuthService {
 
             // Generate a JWT token
             const token = this.jwtService.sign({id:user.id}, { secret: this.configService.get('JWT_SECRET'), expiresIn: '1h' });
-        const userWithoutPassword = classToPlain(user);
+        const userWithoutPassword = instanceToPlain(user);
             return { user, token };
 
         } catch (error) {

@@ -40,7 +40,9 @@ async function seedIntegrations() {
             clientId: encryptedLinkedInClientId,
             clientSecret: encryptedLinkedInClientSecret,
             redirectUri:"/integrations/exchange-code",
-            oauthUri:"https://www.linkedin.com/oauth/v2/authorization"
+            oauthUri:"https://www.linkedin.com/oauth/v2/authorization",
+            tokenUri: "https://www.linkedin.com/oauth/v2/accessToken",
+            scope: 'openid profile email',
         };
 
         const facebookIntegration = new Integration();
@@ -50,8 +52,9 @@ async function seedIntegrations() {
             clientId: encryptedFacebookClientId,
             clientSecret: encryptedFacebookClientSecret,
             redirectUri:"/integrations/exchange-code",
-            oauthUri:"https://www.facebook.com/v10.0/dialog/oauth"
-
+            oauthUri:"https://www.facebook.com/v10.0/dialog/oauth",
+            tokenUri: "https://graph.facebook.com/oauth/access_token",
+            scope: 'public_profile email',
         };
 
         // Save to the database

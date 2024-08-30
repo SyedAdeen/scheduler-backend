@@ -22,5 +22,5 @@ export class Integration extends Base {
 
   @Exclude()
   @Column({ type: 'jsonb', nullable: true })
-  metadata: { clientId: string; clientSecret: string, redirectUri: string, oauthUri:string }; 
+  metadata: { clientId: string; clientSecret: string, redirectUri: string, oauthUri:string, tokenUri:string, scope:string }; 
 }
