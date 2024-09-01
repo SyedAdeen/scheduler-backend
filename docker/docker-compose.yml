@@ -25,11 +25,11 @@ services:
     volumes:
       - db-data-backup:/var/lib/postgresql/data
     environment:
-      POSTGRES_USER: "${DB_USERNAME:-postgres}"
-      POSTGRES_PASSWORD: "${DB_PASSWORD:-password}"
-      POSTGRES_DB: "${DB_NAME:-postflow}"
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "password"
+      POSTGRES_DB: "postflow"
     ports:
-      - "${DB_PORT:-5432}:${DB_PORT:-5432}"  # Map the correct PostgreSQL port
+      - "5220:5432"  # Map the correct PostgreSQL port
     networks:
       - postflow-network
 
@@ -39,7 +39,7 @@ services:
     volumes:
       - redis-data:/data
     ports:
-      - "${REDIS_PORT:-6379}:6379"  # Ensure Redis port mapping is correct
+      - "6379:6379"
     networks:
       - postflow-network
 
