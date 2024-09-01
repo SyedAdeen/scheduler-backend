@@ -20,6 +20,9 @@ export class Integration extends Base {
   @Column({ type: 'text', nullable: true })
   description: string; 
 
+  @Column()
+  icon: string;
+
   @Exclude()
   @Column({ type: 'jsonb', nullable: true })
   metadata: IntegrationMetadata;
