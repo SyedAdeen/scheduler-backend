@@ -1,16 +1,16 @@
-FROM node:16.16-alpine3.15
+FROM node:22-alpine3.19
 
 WORKDIR /app
 
 COPY ./tsconfig.json /app/
 COPY ./tsconfig.build.json /app/
 COPY ./package.json /app/
-COPY ./package-lock.json /app/
+COPY ./yarn.lock /app/
 COPY ./nest-cli.json /app/
 COPY ./.env /app/
 
-RUN npm install --force
+RUN yarn
 
 EXPOSE 3001 
 
-CMD npm run start:dev
+CMD yarn start:dev
