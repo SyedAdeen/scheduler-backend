@@ -10,6 +10,7 @@
 - **Get Integrations Endpoint:** `/integrations`
 - **Get Authorization Url Endpoint:** `/integrations/:integrationId`
 - **Delete User Integration Endpoint:** `/integrations/:integrationId`
+- **Exchange Tokens for Access Token:** `/integrations/exchange-code`
 - **Swagger:** `/docs`
 
 ### Steps to Start the Project:

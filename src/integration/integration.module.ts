@@ -1,4 +1,5 @@
-import { Module } from "@nestjs/common";
+import { Module } from '@nestjs/common';
+import {HttpModule} from '@nestjs/axios';
 import { ConfigModule } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { IntegrationController } from "./integration.controller";
@@ -10,6 +11,7 @@ import { UserIntegration } from '@entities/user-integration.entity';
 @Module({
     imports: [
         ConfigModule.forRoot({ isGlobal: true }),
+        HttpModule,
         TypeOrmModule.forFeature([Integration, UserIntegration]),
     ],
     controllers: [IntegrationController],

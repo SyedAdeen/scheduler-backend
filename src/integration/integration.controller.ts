@@ -1,18 +1,20 @@
-import { Controller, Get, UseGuards, Req, Param, Delete, ParseIntPipe  } from "@nestjs/common";
-import { ApiOperation, ApiResponse, ApiTags, ApiBearerAuth, ApiParam } from "@nestjs/swagger";
+import { Controller, Get, UseGuards, Req, Param, Delete, Query } from "@nestjs/common";
+import { ApiOperation, ApiResponse, ApiTags, ApiBearerAuth } from "@nestjs/swagger";
 import { IntegrationService } from "./services/integration.service";
 import { Integration } from "@entities/integration.entity";
-import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard"; // Keep the JwtAuthGuard if you still want to protect the route
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { IntegrationDto } from "./dtos/get-integration.dto";
+import { instanceToPlain } from "class-transformer";
 
 @Controller("integrations")
 @ApiTags("Integration")
-@ApiBearerAuth('access-token') 
-@UseGuards(JwtAuthGuard)  // Apply JwtAuthGuard if needed, can be removed if handled in middleware
+
 export class IntegrationController {
   constructor(private readonly integrationService: IntegrationService) {}
 
   @Get("")
+  @ApiBearerAuth('access-token') 
+  @UseGuards(JwtAuthGuard)  
   @ApiOperation({ summary: "Get integrations for a specific user" })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({
@@ -22,13 +24,15 @@ export class IntegrationController {
   })
   async getIntegrationsForUser(
     @Req() request: any // Inject the request object
-  ): Promise<Integration[]> {
+  ){
     const user = request.user; 
     const integrations = await this.integrationService.getIntegrationsForUser(user.id);
-    return integrations;
+    return instanceToPlain(integrations);
   }
 
-  @Get('/:integrationId')
+  @Get("/:integrationId(\\d+)") 
+  @ApiBearerAuth('access-token') 
+  @UseGuards(JwtAuthGuard)  
   @ApiOperation({ summary: 'Get Authorization URL for a specific integration' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 400, description: 'Bad Request, Integration Not Found' })
@@ -48,6 +52,8 @@ export class IntegrationController {
   }
  
   @Delete('/:integrationId')
+  @ApiBearerAuth('access-token') 
+  @UseGuards(JwtAuthGuard)  
   @ApiOperation({ summary: 'Delete User Integration' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 400, description: 'No UserIntegration found with given Integration ID and User ID' })
@@ -64,4 +70,22 @@ export class IntegrationController {
     const integrationId = params.integrationId; // Extracting integrationId from the DTO
     return this.integrationService.deleteUserIntegration(user.id, integrationId);
   }
+
+  @Get('exchange-code')
+  @ApiOperation({ summary: 'Exchange code for tokens' })
+  @ApiResponse({ status: 200, description: 'Access and refresh tokens exchanged successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid or expired code' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async exchangeCode(
+    @Query('code') code: string, 
+    @Query('state') state: string,
+    @Req() req: Request,
+  ) {
+    // Parse the state parameter to get userId and integrationId
+    const { userId, integrationId } = JSON.parse(decodeURIComponent(state)); 
+
+    // Exchange the code for tokens
+    return instanceToPlain(this.integrationService.exchangeCodeForTokens(code, userId, integrationId));
+  }
+
 }

@@ -7,7 +7,7 @@ import {
 
 import { UserIntegration } from './user-integration.entity'; 
 import { Exclude } from "class-transformer";
-
+import { IntegrationMetadata } from "../interfaces/integration.metadata.interface";
 
 @Entity({ name: 'integrations' })
 export class Integration extends Base {
@@ -22,5 +22,5 @@ export class Integration extends Base {
 
   @Exclude()
   @Column({ type: 'jsonb', nullable: true })
-  metadata: { clientId: string; clientSecret: string, redirectUri: string, oauthUri:string }; 
+  metadata: IntegrationMetadata;
 }
