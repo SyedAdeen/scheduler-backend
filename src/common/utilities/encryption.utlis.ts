@@ -1,6 +1,6 @@
 import * as crypto from 'crypto';
 import { ConfigService } from '@nestjs/config';
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 
 @Injectable()
 export class EncryptionService implements OnModuleInit {
@@ -28,6 +28,13 @@ export class EncryptionService implements OnModuleInit {
   }
 
   decrypt(encryptedText: string): string {
+    Logger.log("algo:", this.algorithm);
+    Logger.log("key:", this.key);
+    Logger.log("iv:", this.iv);
+    const keyHex = this.configService.get<string>('ENCRYPTION_KEY');
+    const ivHex = this.configService.get<string>('ENCRYPTION_IV');
+    Logger.log("keyHex:", keyHex);
+    Logger.log("ivHex:", ivHex);
     const decipher = crypto.createDecipheriv(this.algorithm, this.key, this.iv);
     let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
     decrypted += decipher.final('utf8');

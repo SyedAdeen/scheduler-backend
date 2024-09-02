@@ -63,7 +63,8 @@ export class IntegrationService {
     const scope = integration.metadata.scope;
 
     // Construct the dynamic redirect_uri
-    const redirect_uri = `${host}:${port}${redirectUri}`;
+    // const redirect_uri = `${host}:${port}${redirectUri}`;
+    const redirect_uri = `${host}${redirectUri}`;
 
     // Generate the authorization URL
     const authUrl = `${oauthUri}?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirect_uri)}&response_type=code&state=${encodeURIComponent(state)}&scope=${encodeURIComponent(scope)}`;
@@ -97,15 +98,21 @@ export class IntegrationService {
     }
 
     const tokenUri = integration.metadata.tokenUri; // LinkedIn token endpoint
+    Logger.log("tokenUri:", tokenUri);
     const clientId = this.encryptionService.decrypt(integration.metadata.clientId);
+    Logger.log("clientID:", clientId);
     const clientSecret = this.encryptionService.decrypt(integration.metadata.clientSecret);
+    Logger.log("clientSecret:", clientSecret);
     const redirectUri = integration.metadata.redirectUri;
     const host = this.configService.get<string>('HOST', '127.0.0.1'); 
     const port = this.configService.get<string>('PORT', '3001'); 
-    const redirect_uri = `${host}:${port}${redirectUri}`;
+    // const redirect_uri = `${host}:${port}${redirectUri}`;
+    const redirect_uri = `${host}${redirectUri}`;
+    Logger.log("redirectUri:", redirect_uri);
  
     // Make the request to exchange code for tokens
-    try {
+    // try {
+    console.log("a");
       const response = await this.httpservice
         .post(tokenUri, new URLSearchParams({
           grant_type: 'authorization_code',
@@ -119,13 +126,19 @@ export class IntegrationService {
           }
         })
         .toPromise();
+        console.log("b");
+        // Logger.log("response:", response);
 
       const { access_token, refresh_token, expires_in } = response.data;
+      
+      console.log("c");
 
       // Find the user's integration record and update it
       let userIntegration = await this.userIntegrationRepository.findOne({
         where: { user: { id: userId }, integration: { id: integrationId } },
       });
+
+      console.log("d");
 
       if (userIntegration) {
         throw new BadRequestException('UserIntegration found');
@@ -143,10 +156,10 @@ export class IntegrationService {
 
       return this.userIntegrationRepository.save(userIntegration);
 
-    } catch (error) {
-      Logger.error('Error details:', error.response?.data || error.message);
-      throw error;
-    }
+    // } catch (error) {
+    //   Logger.error('Error details:', error.response?.data || error.message);
+    //   throw error;
+    // }
   }
       
 }
