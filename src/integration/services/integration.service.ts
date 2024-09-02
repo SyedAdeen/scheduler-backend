@@ -50,7 +50,9 @@ export class IntegrationService {
     }
 
     // Define your client ID and redirect URL (You might want to fetch these from the integration entity or config)
+    Logger.log("meta data:", integration.metadata);
     const clientId = this.encryptionService.decrypt(integration.metadata.clientId);
+    Logger.log("decrypted clientId:", clientId);
     const redirectUri= integration.metadata.redirectUri;
     const oauthUri = integration.metadata.oauthUri;
 
