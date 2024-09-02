@@ -139,7 +139,7 @@ export class IntegrationService {
         },
     });
 
-      return await this.userIntegrationRepository.save(userIntegration);
+      return this.userIntegrationRepository.save(userIntegration);
 
     } catch (error) {
       Logger.error('Error details:', error.response?.data || error.message);

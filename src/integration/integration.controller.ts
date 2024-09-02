@@ -44,11 +44,11 @@ export class IntegrationController {
   async getAuthUrl(
     @Req() request: any, // Inject the request object
     @Param() params: IntegrationDto, // Use DTO here
-  ): Promise<string> {
+  ): Promise<{ url: string }> {
     const user = request.user; 
     const integrationId = params.integrationId;
     const authUrl = await this.integrationService.generateAuthUrl(user.id, integrationId);
-    return authUrl;
+    return { url: authUrl };
   }
  
   @Delete('/:integrationId')
