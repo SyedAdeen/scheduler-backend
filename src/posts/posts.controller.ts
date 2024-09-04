@@ -21,7 +21,7 @@ export class PostsController {
     type: [GetPostTypesDto], 
   })
   async getPostTypesForIntegration(
-    @Param('integrationId') integrationId: string
+    @Param('integrationId') integrationId: number
   ): Promise<GetPostTypesDto[]> {
     const postTypes = this.postsService.getPostTypesForIntegration(integrationId);
     return postTypes;
