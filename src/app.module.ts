@@ -11,6 +11,8 @@ import { MailerModule } from "@nestjs-modules/mailer";
 import { createClient } from "@redis/client";
 import { OAuth2Client } from 'google-auth-library'; // Import the Google client
 import { UtilitiesModule } from './common/utilities/utilities.module';
+import { PostsModule } from "./posts/posts.module";
+
 
 @Global()
 @Module({
@@ -20,6 +22,7 @@ import { UtilitiesModule } from './common/utilities/utilities.module';
         ScheduleModule.forRoot(),
         AuthModule,
         IntegrationModule,
+        PostsModule,
         UtilitiesModule,
         MailerModule.forRootAsync({
             imports: [ConfigModule],
