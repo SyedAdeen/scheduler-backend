@@ -2,7 +2,7 @@ import { Controller, Get, Param, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PostsService } from './services/posts.service';
-import { IntegrationPostsTypes } from '../common/database/entities/integration-posts-types.entity';
+import { GetPostTypesDto } from './dtos/get-post-types.dto';
 import { instanceToPlain } from 'class-transformer';
 
 @Controller('integrations/:integrationId/post-types')
@@ -18,12 +18,12 @@ export class PostsController {
   @ApiResponse({
     status: 200,
     description: 'List of post types for the integration',
-    type: [IntegrationPostsTypes],
+    type: [GetPostTypesDto], 
   })
   async getPostTypesForIntegration(
     @Param('integrationId') integrationId: string
-  ) {
-    const postTypes = await this.postsService.getPostTypesForIntegration(integrationId);
+  ): Promise<GetPostTypesDto[]> {
+    const postTypes = this.postsService.getPostTypesForIntegration(integrationId);
     return postTypes;
   }
 }
