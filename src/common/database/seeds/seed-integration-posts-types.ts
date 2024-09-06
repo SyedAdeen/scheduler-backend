@@ -1,6 +1,6 @@
 import DataSource from '../ormconfig';
 import { Integration } from '../entities/integration.entity';
-import { PostsTypes } from '../entities/posts-types.entity';
+import { PostType } from '../entities/post-type.entity';
 import { IntegrationPostsTypes } from '../entities/integration-posts-types.entity';
 import { In } from 'typeorm';
 
@@ -12,7 +12,7 @@ async function seedIntegrationPostTypes() {
 
         // Get repositories
         const integrationRepository = dataSource.getRepository(Integration);
-        const postTypesRepository = dataSource.getRepository(PostsTypes);
+        const postTypesRepository = dataSource.getRepository(PostType);
         const integrationPostTypesRepository = dataSource.getRepository(IntegrationPostsTypes);
 
         // Find integration entities for LinkedIn and Facebook

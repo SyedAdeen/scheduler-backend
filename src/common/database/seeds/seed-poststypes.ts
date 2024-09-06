@@ -1,5 +1,5 @@
 import DataSource from '../ormconfig';
-import { PostsTypes } from '../entities/posts-types.entity';
+import { PostType } from '../entities/post-type.entity';
 
 async function seedPostTypes() {
     try {
@@ -8,7 +8,7 @@ async function seedPostTypes() {
         console.log(dataSource, "Initialized");
 
         // Get the repository
-        const postTypesRepository = dataSource.getRepository(PostsTypes);
+        const postTypesRepository = dataSource.getRepository(PostType);
 
         // Define post types
         const postTypes = [
@@ -22,7 +22,7 @@ async function seedPostTypes() {
 
         // Create PostsTypes instances
         const postTypesEntities = postTypes.map(type => {
-            const postType = new PostsTypes();
+            const postType = new PostType();
             postType.name = type.name;
             return postType;
         });

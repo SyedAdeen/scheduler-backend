@@ -3,7 +3,7 @@ import { Base } from './base.entity';
 import { IntegrationPostsTypes } from './integration-posts-types.entity';
 
 @Entity({ name: 'posts_types' })
-export class PostsTypes extends Base {
+export class PostType extends Base {
 
   @Column({ type: 'varchar', unique: true })
   name: string;  // Name of the post type, e.g., 'Text', 'Image', 'Video'

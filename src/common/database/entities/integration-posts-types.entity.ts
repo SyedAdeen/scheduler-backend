@@ -1,7 +1,7 @@
 import { Entity, ManyToOne, JoinColumn } from 'typeorm';
 import { Base } from './base.entity';
 import { Integration } from './integration.entity';
-import { PostsTypes } from './posts-types.entity';
+import { PostType } from './post-type.entity';
 
 @Entity({ name: 'integration_posts_types' })
 export class IntegrationPostsTypes extends Base {
@@ -10,7 +10,7 @@ export class IntegrationPostsTypes extends Base {
   @JoinColumn({ name: 'integration_id' })
   integration: Integration;
 
-  @ManyToOne(() => PostsTypes, postsTypes => postsTypes.integrationPostsTypes)
+  @ManyToOne(() => PostType, postsTypes => postsTypes.integrationPostsTypes)
   @JoinColumn({ name: 'post_type_id' })
-  postType: PostsTypes;
+  postType: PostType;
 }
