@@ -8,11 +8,16 @@ import {
 import { UserIntegration } from './user-integration.entity'; 
 import { Exclude } from "class-transformer";
 import { IntegrationMetadata } from "../interfaces/integration.metadata.interface";
+import { IntegrationPostsTypes } from './integration-posts-types.entity';
+
 
 @Entity({ name: 'integrations' })
 export class Integration extends Base {
   @OneToMany(() => UserIntegration, userIntegration => userIntegration.integration)
   userIntegrations: UserIntegration[];
+
+  @OneToMany(() => IntegrationPostsTypes, integrationPostsTypes => integrationPostsTypes.integration)
+  integrationPostsTypes: IntegrationPostsTypes[];
 
   @Column({ unique: true })
   platform: string; 
