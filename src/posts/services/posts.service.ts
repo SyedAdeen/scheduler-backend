@@ -77,7 +77,7 @@ export class PostsService {
         // Save the media URL in the `post_media` table
         const postMedia = this.postMediaRepository.create({
           post: { id: post.id },
-          media_url: result.secure_url,
+          mediaUrl: result.secure_url,
         });
 
         await this.postMediaRepository.save(postMedia);
@@ -122,7 +122,7 @@ export class PostsService {
 
       const postMedia = this.postMediaRepository.create({
         post: { id: postId },
-        media_url: result.secure_url,
+        mediaUrl: result.secure_url,
       });
 
       await this.postMediaRepository.save(postMedia);

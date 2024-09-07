@@ -19,15 +19,15 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PostsService } from './services/posts.service';
 import { GetPostTypesDto } from './dtos/get-post-types.dto';
 import { CreatePostDto } from './dtos/create-post.dto';
-import { Request } from 'express';
+import { plainToClass } from 'class-transformer';
 
 
-@Controller('integrations/:integrationId/post-types')
+@Controller('integrations/:integrationId')
 @ApiTags('Posts')
 export class PostsController {
   constructor(private readonly postsService: PostsService) {}
 
-  @Get()
+  @Get('post-types')
   @ApiBearerAuth('access-token')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Get Post Types for a specific integration' })
@@ -44,97 +44,134 @@ export class PostsController {
     return postTypes;
   }
 
-  // @Post('create')
-  // @ApiBearerAuth('access-token')
-  // @UseGuards(JwtAuthGuard)
-  // @ApiOperation({ summary: 'Create a new post' })
-  // @ApiResponse({ status: 401, description: 'Unauthorized' })
-  // @ApiResponse({ status: 201, description: 'Post created successfully' })
-  // async createPost(
-  //   @Param('integrationId') integrationId: number,
-  //   @Body() createPostDto: CreatePostDto
-  // ): Promise<void> {
-  //   try {
-  //     await this.postsService.createPost(integrationId, createPostDto);
-  //   } catch (error) {
-  //     throw new HttpException('Error creating post', HttpStatus.BAD_REQUEST);
-  //   }
-  // }
 
-  // @Post(':postId/upload')
-  // @ApiBearerAuth('access-token')
-  // @UseGuards(JwtAuthGuard)
-  // @ApiOperation({ summary: 'Upload media for a specific post' })
-  // @ApiResponse({ status: 401, description: 'Unauthorized' })
-  // @ApiResponse({ status: 200, description: 'Media uploaded successfully' })
-  // @UseInterceptors(FileFieldsInterceptor([
-  //   { name: 'images', maxCount: 10 },
-  //   { name: 'videos', maxCount: 1 },
-  // ]))
-  // async uploadMedia(
-  //   @Param('postId') postId: number,
-  //   @UploadedFiles() files: { images?: Express.Multer.File[], videos?: Express.Multer.File[] }
-  // ): Promise<void> {
-  //   if (!files.images && !files.videos) {
-  //     throw new BadRequestException('No files provided');
-  //   }
-    
-  //   const mediaFiles = [...(files.images || []), ...(files.videos || [])];
-  //   await this.postsService.uploadMedia(postId, mediaFiles);
-  // }
-
-
-  @Post('create/:integrationId')
-@ApiBearerAuth('access-token')
-@UseGuards(JwtAuthGuard)
-@ApiOperation({ summary: 'Create a new post' })
-@ApiResponse({ status: 401, description: 'Unauthorized' })
-@ApiResponse({ status: 201, description: 'Post created successfully' })
-@UseInterceptors(FileFieldsInterceptor([
-  { name: 'images', maxCount: 10 },
-  { name: 'videos', maxCount: 1 },
-]))
-@ApiConsumes('multipart/form-data')
-@ApiBody({
-  schema: {
-    type: 'object',
-    properties: {
-      content: { type: 'string' },
-      recurring: { type: 'boolean' },
-      scheduled: { type: 'string', format: 'date-time', nullable: true },
-      images: {
-        type: 'array',
-        items: { type: 'string', format: 'binary' },
-      },
-      videos: {
-        type: 'string', format: 'binary',
+  @Post('create')
+  @ApiBearerAuth('access-token')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Create a new post' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 201, description: 'Post created successfully' })
+  @UseInterceptors(FileFieldsInterceptor([
+    { name: 'Media Carousel', maxCount: 10 }, // Allow up to 10 images for carousel
+    { name: 'Image', maxCount: 1 },           // Allow a single image
+    { name: 'Video', maxCount: 1 },           // Allow a single video
+    { name: 'Poll', maxCount: 1 },            // Allow one poll document
+    { name: 'Document', maxCount: 5 },        // Allow up to 5 documents
+  ]))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        content: { type: 'string' },
+        recurring: { type: 'boolean' },
+        scheduled: { type: 'string', format: 'date-time', nullable: true },
+        mediaType: { 
+          type: 'string', 
+          enum: ['Media Carousel', 'Image', 'Video', 'Poll', 'Document'],
+          description: 'Type of media being uploaded. Use this field to determine which files are relevant.' 
+        },
+        'Media Carousel': {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+          description: 'Array of image files (up to 10). Only relevant if mediaType is "Media Carousel".'
+        },
+        'Image': {
+          type: 'string',
+          format: 'binary',
+          description: 'Single image file. Only relevant if mediaType is "Image".'
+        },
+        'Video': {
+          type: 'string',
+          format: 'binary',
+          description: 'Video file (only one allowed). Only relevant if mediaType is "Video".'
+        },
+        'Poll': {
+          type: 'string',
+          format: 'binary',
+          description: 'Poll document (only one allowed). Only relevant if mediaType is "Poll".'
+        },
+        'Document': {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+          description: 'Array of document files (up to 5). Only relevant if mediaType is "Document".'
+        },
       },
     },
-  },
-})
-async createPost(
-  @Param('integrationId') integrationId: number,
-  @Body() body: any,
-  @UploadedFiles() files: { images?: Express.Multer.File[], videos?: Express.Multer.File[] },
-  @Req() request: any
-): Promise<void> {
-  const user = request.user;
+  })
+  async createPost(
+    @Body() body: any,
+    @Param('integrationId') integrationId: number,
+    @UploadedFiles() files: {
+      'Media Carousel'?: Express.Multer.File[],
+      'Image'?: Express.Multer.File[],
+      'Video'?: Express.Multer.File[],
+      'Poll'?: Express.Multer.File[],
+      'Document'?: Express.Multer.File[],
+    },
+    @Req() request: any
+  ): Promise<void> {
+    const user = request.user;
+    
+    // Handle metadata and convert body to DTO
+    const { content, recurring, scheduled, mediaType } = body;
+    const createPostDto = plainToClass(CreatePostDto, { content, recurring, scheduled, mediaType }, { enableImplicitConversion: true });
+
+    // Combine all files into a single array of media files based on mediaType
+    let mediaFiles: Express.Multer.File[] = [];
+
+    switch (mediaType) {
+      case 'Media Carousel':
+        mediaFiles = files['Media Carousel'] || [];
+        break;
+      case 'Image':
+        mediaFiles = Array.isArray(files['Image']) ? files['Image'] : files['Image'] ? [files['Image']] : [];
+        break;
+      case 'Video':
+        mediaFiles = Array.isArray(files['Video']) ? files['Video'] : files['Video'] ? [files['Video']] : [];
+        break;
+      case 'Poll':
+        mediaFiles = Array.isArray(files['Poll']) ? files['Poll'] : files['Poll'] ? [files['Poll']] : [];
+        break;
+      case 'Document':
+        mediaFiles = files['Document'] || [];
+        break;
+      default:
+        throw new BadRequestException('Invalid media type');
+    }
+    
+    // Call the service method with the necessary data
+    return this.postsService.createPost(user.id, integrationId, createPostDto, mediaFiles);
+  }
+
   
-  // Manually convert recurring to boolean
-  const createPostDto = new CreatePostDto();
-  createPostDto.content = body.content;
-  createPostDto.recurring = body.recurring === 'true'; // Convert 'true'/'false' to boolean
-  createPostDto.scheduled = body.scheduled || undefined; // Keep as undefined if empty
-
-  // Combine images and video into a single array of media files
-  const mediaFiles: Express.Multer.File[] = [
-    ...(files.images || []),
-    ...(Array.isArray(files.videos) ? files.videos : files.videos ? [files.videos] : [])
-  ];
-
-  // Call the service method with the necessary data
-  await this.postsService.createPost(user.id, integrationId, createPostDto, mediaFiles);
-}
+  // async createPost(
+  //   @Param('integrationId') integrationId: number,
+  //   @Body() body: any,
+  //   @UploadedFiles() files: {
+  //     images?: Express.Multer.File[],
+  //     videos?: Express.Multer.File[],
+  //     polls?: Express.Multer.File[],
+  //     documents?: Express.Multer.File[],
+  //   },
+  //   @Req() request: any
+  // ): Promise<void> {
+  //   const user = request.user;
+  
+  //   // Transform the body to the DTO
+  //   const createPostDto = plainToClass(CreatePostDto, body, { enableImplicitConversion: true });
+  
+  //   // Combine all files into a single array of media files
+  //   const mediaFiles: Express.Multer.File[] = [
+  //     ...(files.images || []),
+  //     ...(Array.isArray(files.videos) ? files.videos : files.videos ? [files.videos] : []),
+  //     ...(Array.isArray(files.polls) ? files.polls : files.polls ? [files.polls] : []),
+  //     ...(files.documents || []),
+  //   ];
+  
+  //   // Call the service method with the necessary data
+  //   return this.postsService.createPost(user.id, integrationId, createPostDto, mediaFiles);
+  // }
 
   @Post(':postId/upload')
   @ApiBearerAuth('access-token')

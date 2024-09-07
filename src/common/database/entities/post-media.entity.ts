@@ -8,7 +8,7 @@ export class PostMedia extends Base {
   @JoinColumn({ name: 'post_id' })
   post: Post;
 
-  @Column({ type: 'varchar' })
-  media_url: string;
+  @Column({ type: 'varchar',  name: 'media_url' })
+  mediaUrl: string;
 
 }
