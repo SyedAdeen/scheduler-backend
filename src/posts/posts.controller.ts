@@ -50,10 +50,10 @@ export class PostsController {
   @ApiResponse({ status: 400, description: 'Failed to publish the post' })
   @ApiResponse({ status: 201, description: 'Post created successfully' })
   @UseInterceptors(FileFieldsInterceptor([
-    { name: 'Media Carousel', maxCount: 10 },
+    { name: 'Media Carousel', maxCount: 5 },
     { name: 'Image', maxCount: 1 },
     { name: 'Video', maxCount: 1 },
-    { name: 'Document', maxCount: 5 },
+    { name: 'Document', maxCount: 1 },
   ]))
   @ApiConsumes('multipart/form-data')
   @ApiBody({
