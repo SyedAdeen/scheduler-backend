@@ -351,9 +351,7 @@ export class PostsService {
             throw new BadRequestException('Invalid poll object format.');
           }
         }
-      }
-  
-      
+      }      
   
       // Determine media category
       const mediaCategory = mediaAssets.length > 1
