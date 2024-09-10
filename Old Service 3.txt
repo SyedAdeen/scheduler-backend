@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { QueryResult, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { IntegrationPostsTypes } from '../../common/database/entities/integration-posts-types.entity';
 import { Post } from '../../common/database/entities/post.entity';
 import { PostMedia } from '../../common/database/entities/post-media.entity';
@@ -8,7 +8,6 @@ import { UserIntegration } from '../../common/database/entities/user-integration
 import { CreatePostDto } from '../dtos/create-post.dto';
 import { v2 as Cloudinary } from 'cloudinary';
 import axios from 'axios';
-import { classToPlain } from 'class-transformer';
 
 @Injectable()
 export class PostsService {
@@ -52,12 +51,10 @@ export class PostsService {
     integrationId: number,
     createPostDto: CreatePostDto,
     files: Express.Multer.File[],
+    mediaType:any
   ): Promise<void> {
     this.logger.log('Create post DTO:', createPostDto);
-    const mediaType = createPostDto.mediaType;
-    console.log(mediaType);
-    console.log(createPostDto.poll);
-    
+    console.log("media type",mediaType);
 
     const post = this.postRepository.create({
       ...createPostDto,
@@ -93,7 +90,7 @@ export class PostsService {
 
     if (!createPostDto.recurring && !createPostDto.scheduled) {
       this.logger.log('Post immediately');
-      await this.postToPlatform(post.id, integrationId, createPostDto);
+      await this.postToPlatform(post.id, integrationId, mediaType);
     } else if (createPostDto.scheduled) {
       this.schedulePost(post.id, createPostDto.scheduled);
     }
@@ -103,12 +100,11 @@ export class PostsService {
     // Implement scheduling logic
   }
 
-  private async postToPlatform(postId: number, integrationId: number, createPostDto:CreatePostDto) {
+  private async postToPlatform(postId: number, integrationId: number, mediaType:any) {
     const platform = await this.getPlatformByIntegrationId(integrationId);
-    const mediaType = createPostDto.mediaType;
 
     if (platform === 'LinkedIn') {
-      await this.postToLinkedIn(postId, integrationId, createPostDto);
+      await this.postToLinkedIn(postId, integrationId, mediaType);
     }
   }
 
@@ -117,7 +113,7 @@ export class PostsService {
     return 'LinkedIn';  // Example
   }
 
-  private async postToLinkedIn(postId: number, integrationId: number, createPostDto:CreatePostDto) {
+  private async postToLinkedIn(postId: number, integrationId: number, mediaType:any) {
     const post = await this.postRepository.findOne({
       where: { id: postId },
       relations: ['postMedia', 'user'],
@@ -126,7 +122,6 @@ export class PostsService {
     if (!post) {
       throw new NotFoundException(`Post with id ${postId} not found.`);
     }
-    const mediaType = createPostDto.mediaType;
 
     this.logger.log('Post:', post);
     console.log("Media Type in this.postToLinkedIn",mediaType);
@@ -138,25 +133,20 @@ export class PostsService {
     }
 
     let mediaAssets: any[] = [];
-    if(mediaType!== 'Poll')
-    {
-      if (post.postMedia && post.postMedia.length > 0) {
-        for (const media of post.postMedia) {
-          const mediaAsset = await this.registerLinkedInMedia(media.mediaUrl, accessToken, mediaType);
-          if (mediaAsset) {
-            mediaAssets.push(mediaAsset);
-          }
+    if (post.postMedia && post.postMedia.length > 0) {
+      for (const media of post.postMedia) {
+        const mediaAsset = await this.registerLinkedInMedia(media.mediaUrl, accessToken, mediaType);
+        if (mediaAsset) {
+          mediaAssets.push(mediaAsset);
         }
       }
-
     }
-    
 
-    if (mediaAssets.length === 0 && mediaType!=='Poll') {
+    if (mediaAssets.length === 0) {
       console.log("I am here");
       await this.publishPostToLinkedInContentOnly(post.content || 'Default content text', accessToken);
     } else {
-      await this.publishPostToLinkedInContentWithMedia(post, mediaAssets, accessToken, createPostDto );
+      await this.publishPostToLinkedInContentWithMedia(post, mediaAssets, accessToken, mediaType);
     }
   }
 
@@ -200,21 +190,20 @@ export class PostsService {
     }
   }
 
-  private async registerLinkedInMedia(mediaUrl: string, accessToken: string, mediaType: any): Promise<string> {
+  private async registerLinkedInMedia(mediaUrl: string, accessToken: string, mediaType:any): Promise<string> {
     try {
       const personUrn = await this.getPersonUrn(accessToken);
-  
-      let recipe;
-      if (mediaType === 'Video') {
-        recipe = 'urn:li:digitalmediaRecipe:feedshare-video';
-      } else if (mediaType === 'Document') {
-        recipe = 'urn:li:digitalmediaRecipe:feedshare-document';
-      } else {
-        recipe = 'urn:li:digitalmediaRecipe:feedshare-image';
-      }
 
-      console.log("Recipe:",recipe);
-  
+      // Determine media type
+      console.log("type of Media in register linked in function", mediaType);
+      let recipe;
+
+      recipe = mediaType === 'Video'
+        ? 'urn:li:digitalmediaRecipe:feedshare-video'
+        : 'urn:li:digitalmediaRecipe:feedshare-image';
+
+        console.log("Recipe = ", recipe);
+
       const registerResponse = await axios.post(
         'https://api.linkedin.com/v2/assets?action=registerUpload',
         {
@@ -225,7 +214,7 @@ export class PostsService {
               identifier: 'urn:li:userGeneratedContent',
               relationshipType: 'OWNER',
             }],
-            // supportedUploadMechanism: ['SYNCHRONOUS_UPLOAD'],
+            supportedUploadMechanism: ['SYNCHRONOUS_UPLOAD'],
           },
         },
         {
@@ -236,19 +225,23 @@ export class PostsService {
         }
       );
 
-      console.log("Register Response = ", registerResponse);
-  
-      const uploadUrl = registerResponse.data.value.uploadMechanism['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest'].uploadUrl;
+      const uploadMechanism = registerResponse.data.value.uploadMechanism;
+      const uploadUrl = uploadMechanism['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest'].uploadUrl;
       const asset = registerResponse.data.value.asset;
-  
+
+      if (!uploadUrl || !asset) {
+        throw new BadRequestException('Failed to get upload URL or asset from LinkedIn.');
+      }
+
       const mediaResponse = await axios.get(mediaUrl, { responseType: 'arraybuffer' });
+
       await axios.put(uploadUrl, mediaResponse.data, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': mediaType,
         },
       });
-  
+
       return asset;
     } catch (error) {
       this.logger.error('Error registering or uploading media to LinkedIn:', {
@@ -259,7 +252,6 @@ export class PostsService {
       throw new BadRequestException('Failed to upload media to LinkedIn.');
     }
   }
-  
 
   private async publishPostToLinkedInContentOnly(content: string, accessToken: string) {
     try {
@@ -292,8 +284,6 @@ export class PostsService {
       );
 
       this.logger.log('Post published successfully:', postResponse.data);
-      return {message:"Post Published Successfully"};
-
     } catch (error) {
       this.logger.error('Error publishing post to LinkedIn:', {
         message: error.message,
@@ -304,122 +294,59 @@ export class PostsService {
     }
   }
 
-  private async publishPostToLinkedInContentWithMedia(post: Post, mediaAssets: any[], accessToken: string, createPostDto: CreatePostDto) {
+  private async publishPostToLinkedInContentWithMedia(post: Post, mediaAssets: any[], accessToken: string, mediaType:any) {
     try {
       const personUrn = await this.getPersonUrn(accessToken);
-      this.logger.log("Person Urn:", personUrn);
-  
-      // Convert DTO to plain object
-      const plainDto = classToPlain(createPostDto);
-  
-      // Extract media type and handle pollObject
-      const mediaType = plainDto.mediaType;
-      let pollObject = plainDto.poll || {};
-  
-      // Check if pollObject is a string and parse if necessary
-      if (typeof pollObject === 'string') {
-        try {
-          pollObject = JSON.parse(pollObject);
-        } catch (error) {
-          this.logger.error('Failed to parse pollObject:', {
-            message: error.message,
-          });
-          throw new BadRequestException('Invalid poll object format.');
-        }
-      }
-  
-      // Determine media category
+
+      console.log("Media type in publish to Linked in Coetnt with Media", mediaType);
+
       const mediaCategory = mediaAssets.length > 1
-        ? 'CAROUSEL'
-        : mediaType === 'Video'
-        ? 'VIDEO'
-        : mediaType === 'Document'
-        ? 'DOCUMENT'
-        : 'IMAGE';
-  
-      if (mediaType === 'Poll') {
-        // Log the type of poll to ensure it is an object
-        this.logger.log('Poll Type:', typeof pollObject);
-  
-        // Handle poll-specific API call
-        const pollPayload = {
-          author: personUrn,
-          commentary: post.content || '',
-          visibility: 'PUBLIC',
-          distribution: {
-            feedDistribution: 'MAIN_FEED',
-            targetEntities: [],
-            thirdPartyDistributionChannels: []
-          },
-          lifecycleState: 'PUBLISHED',
-          isReshareDisabledByAuthor: false,
-          content: {
-            "poll": {
-              ...pollObject,  // Spread the existing properties of poll
-              "settings": {
-                "duration": "THREE_DAYS"
-              }
-            }
-          }
-        };
-  
-        this.logger.log('Publishing poll to LinkedIn with payload:', pollPayload);
-  
-        const response = await axios.post(
-          'https://api.linkedin.com/rest/posts',
-          pollPayload,
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              'Content-Type': 'application/json',
-              'LinkedIn-Version': '202309',
-              'X-Restli-Protocol-Version': '2.0.0',
+            ? 'CAROUSEL'  // Use 'CAROUSEL' for multiple media assets
+            : mediaAssets.length === 1
+            ? (mediaType === 'Video' ? 'VIDEO' : 'IMAGE')  // Check if the single media asset is video or image
+            : undefined;  // No media assets
+
+      console.log("Media category",mediaCategory);
+
+
+      const postPayload = {
+        author: personUrn,
+        lifecycleState: 'PUBLISHED',
+        specificContent: {
+          'com.linkedin.ugc.ShareContent': {
+            shareCommentary: {
+              text: post.content || '',
             },
-          }
-        );
-  
-        this.logger.log('Poll published successfully:', response.data);
-      } else {
-        // Handle other media types
-        const postPayload = {
-          author: personUrn,
-          lifecycleState: 'PUBLISHED',
-          specificContent: {
-            'com.linkedin.ugc.ShareContent': {
-              shareCommentary: {
+            shareMediaCategory: mediaCategory,
+            media: mediaAssets.map(asset => ({
+              status: 'READY',
+              description: {
                 text: post.content || '',
               },
-              shareMediaCategory: mediaCategory,
-              media: mediaAssets.map(asset => ({
-                status: 'READY',
-                description: {
-                  text: post.content || '',
-                },
-                media: asset,
-              })),
-            },
+              media: asset,
+            })),
           },
-          visibility: {
-            'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC',
+        },
+        visibility: {
+          'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC',
+        },
+      };
+
+      this.logger.log('Publishing post to LinkedIn with payload:', postPayload);
+
+      const response = await axios.post(
+        'https://api.linkedin.com/v2/ugcPosts',
+        postPayload,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
           },
-        };
-  
-        this.logger.log('Publishing post to LinkedIn with payload:', postPayload);
-  
-        const response = await axios.post(
-          'https://api.linkedin.com/v2/ugcPosts',
-          postPayload,
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-  
-        this.logger.log('Post published successfully:', response.data);
-        return {message:"Post Published Successfully"};
-      }
+        }
+      );
+
+      this.logger.log('Post published successfully:', response.data);
+      return {message: "Post Published Successfully"};
     } catch (error) {
       this.logger.error('Error publishing post to LinkedIn:', {
         message: error.message,
@@ -429,9 +356,4 @@ export class PostsService {
       throw new BadRequestException('Failed to publish post to LinkedIn.');
     }
   }
-  
-  
-
-  
-  
 }

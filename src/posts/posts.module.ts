@@ -7,10 +7,10 @@ import { IntegrationPostsTypes } from '../common/database/entities/integration-p
 import { Integration } from '../common/database/entities/integration.entity';
 import { PostMedia } from '@entities/post-media.entity';
 import { Post } from '@entities/post.entity';
-
+import { UserIntegration } from '@entities/user-integration.entity';
 @Module({
   imports: [
-    TypeOrmModule.forFeature([PostType, IntegrationPostsTypes, Integration, Post, PostMedia])
+    TypeOrmModule.forFeature([PostType, IntegrationPostsTypes, Integration, Post, PostMedia, UserIntegration])
   ],
   providers: [PostsService],
   controllers: [PostsController],

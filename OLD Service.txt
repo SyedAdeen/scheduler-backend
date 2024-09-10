@@ -1,0 +1,292 @@
+import { BadRequestException, Injectable, Logger, NotFoundException, Inject } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { IntegrationPostsTypes } from '../../common/database/entities/integration-posts-types.entity';
+import { Post } from '../../common/database/entities/post.entity';
+import { PostMedia } from '../../common/database/entities/post-media.entity';
+import { UserIntegration } from '../../common/database/entities/user-integration.entity'; // Adjust import path as necessary
+import { CreatePostDto } from '../dtos/create-post.dto';
+import { v2 as Cloudinary } from 'cloudinary';
+import axios from 'axios';
+
+@Injectable()
+export class PostsService {
+  constructor(
+    @InjectRepository(IntegrationPostsTypes)
+    private readonly integrationPostsTypesRepository: Repository<IntegrationPostsTypes>,
+    @InjectRepository(Post)
+    private readonly postRepository: Repository<Post>,
+    @InjectRepository(PostMedia)
+    private readonly postMediaRepository: Repository<PostMedia>,
+    @InjectRepository(UserIntegration)
+    private readonly userIntegrationRepository: Repository<UserIntegration>,
+    @Inject('CLOUDINARY') private readonly cloudinary: typeof Cloudinary,
+  ) {}
+
+  async getPostTypesForIntegration(integrationId: number): Promise<{ id: number, name: string }[]> {
+    const integrationIdNumber = integrationId;
+
+    if (isNaN(integrationIdNumber)) {
+      throw new NotFoundException(`Invalid integration ID ${integrationId}`);
+    }
+
+    const postTypes = await this.integrationPostsTypesRepository.find({
+      where: { integration: { id: integrationIdNumber } },
+      relations: ['postType'],
+    });
+
+    if (!postTypes.length) {
+      throw new NotFoundException(`No post types found for integration ID ${integrationId}`);
+    }
+
+    return postTypes.map((pt) => ({
+      id: pt.postType.id,
+      name: pt.postType.name,
+    }));
+
+  }
+
+  async createPost(
+    userId: number,
+    integrationId: number,
+    createPostDto: CreatePostDto,
+    files: Express.Multer.File[]
+  ): Promise<void> {
+    Logger.log('Create post Dto:', createPostDto);
+
+    const post = this.postRepository.create({
+      ...createPostDto,
+      integration: { id: integrationId },
+      user: { id: userId },
+      status: 'Post Created',
+    });
+
+    await this.postRepository.save(post);
+
+    if (files && files.length > 0) {
+      for (const file of files) {
+        const result = await new Promise<any>((resolve, reject) => {
+          this.cloudinary.uploader.upload_stream(
+            { resource_type: 'auto' },
+            (error, result) => {
+              if (error) return reject(error);
+              resolve(result);
+            }
+          ).end(file.buffer);
+        });
+        Logger.log('Cloudinary URL:', result.secure_url);
+
+        const postMedia = this.postMediaRepository.create({
+          post: { id: post.id },
+          mediaUrl: result.secure_url,
+        });
+
+        await this.postMediaRepository.save(postMedia);
+        Logger.log('Media saved successfully');
+      }
+    }
+
+    if (!createPostDto.recurring && !createPostDto.scheduled) {
+      Logger.log('Post immediately');
+      await this.postToPlatform(post.id, integrationId);
+    } else if (createPostDto.scheduled) {
+      this.schedulePost(post.id, createPostDto.scheduled);
+    }
+  }
+
+  private schedulePost(postId: number, scheduledDate: string): void {
+    // Implement scheduling logic
+  }
+
+  private async postToPlatform(postId: number, integrationId: number) {
+    const platform = await this.getPlatformByIntegrationId(integrationId);
+
+    if (platform === 'LinkedIn') {
+      await this.postToLinkedIn(postId, integrationId);
+    }
+  }
+
+  private async getPlatformByIntegrationId(integrationId: number): Promise<string> {
+    // Implement actual logic to determine platform based on integrationId
+    return 'LinkedIn';  // Example
+  }
+
+  private async postToLinkedIn(postId: number, integrationId: number) {
+    const post = await this.postRepository.findOne({
+      where: { id: postId },
+      relations: ['postMedia', 'user'],  // Adjusted to the correct property name
+    });
+
+    if (!post) {
+      throw new NotFoundException(`Post with id ${postId} not found.`);
+    }
+
+    console.log("Post = ", post);
+
+    const accessToken = await this.getAccessToken(post.user.id, integrationId);
+
+    if (!accessToken) {
+      throw new BadRequestException('LinkedIn access token is missing for this user.');
+    }
+
+    let mediaAsset = null;
+    if (post.postMedia && post.postMedia.length > 0) {  // Adjusted to the correct property name
+      mediaAsset = await this.registerLinkedInMedia(post.postMedia[0].mediaUrl, accessToken);
+    }
+
+    await this.publishPostToLinkedIn(post.content, mediaAsset, accessToken);
+  }
+
+  private async getAccessToken(userId: number, integrationId: number): Promise<string> {
+    const userIntegration = await this.userIntegrationRepository.findOne({
+      where: { user: { id: userId }, integration: { id: integrationId } },
+    });
+
+    if (!userIntegration || !userIntegration.metadata || !userIntegration.metadata.accessToken) {
+      throw new BadRequestException('Access token not found');
+    }
+
+    return userIntegration.metadata.accessToken;
+  }
+
+  private async getPersonUrn(accessToken: string): Promise<string> {
+    try {
+      console.log("Access token = ", accessToken);
+      const response = await axios.get(
+        'https://api.linkedin.com/v2/userinfo',
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      console.log("In the getPerson Urn");
+
+
+      console.log("Response = ", response.data); // Log response data
+
+      const { sub } = response.data;
+
+      if (!sub) {
+        throw new BadRequestException('User ID not found in LinkedIn response.');
+      }
+
+      return `urn:li:person:${sub}`;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        Logger.error('Axios error fetching LinkedIn user URN:', {
+          message: error.message,
+          response: error.response?.data,
+          status: error.response?.status,
+        });
+      } else {
+        Logger.error('Unexpected error fetching LinkedIn user URN:', error);
+      }
+      throw new BadRequestException('Failed to fetch LinkedIn user URN.');
+    }
+  }
+
+  private async registerLinkedInMedia(mediaUrl: string, accessToken: string) {
+    try {
+      const personUrn = await this.getPersonUrn(accessToken);
+      console.log("Url of Media", mediaUrl);
+  
+      // Step 1: Register the media upload
+      const registerResponse = await axios.post(
+        'https://api.linkedin.com/v2/assets?action=registerUpload',
+        {
+          registerUploadRequest: {
+            owner: personUrn,
+            recipes: ['urn:li:digitalmediaRecipe:feedshare-image'],
+            serviceRelationships: [{
+              identifier: 'urn:li:userGeneratedContent',
+              relationshipType: 'OWNER',
+            }],
+            supportedUploadMechanism: ['SYNCHRONOUS_UPLOAD'],
+          },
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+  
+      console.log('Register Response:', registerResponse);
+  
+      const uploadMechanism = registerResponse.data.value.uploadMechanism;
+      const uploadUrl = uploadMechanism['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest'].uploadUrl;
+      const asset = registerResponse.data.value.asset;
+  
+      console.log("Upload URL:", uploadUrl);
+      console.log("Asset:", asset);
+  
+      // Step 2: Download the media content
+      const mediaResponse = await axios.get(mediaUrl, {
+        responseType: 'arraybuffer'  // Ensure binary data handling
+      });
+  
+      // Step 3: Upload the media to LinkedIn
+      await axios.put(uploadUrl, mediaResponse.data, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/octet-stream',
+        },
+      });
+  
+      return asset;  // Return the media asset for later use in the post
+    } catch (error) {
+      Logger.error('Error registering or uploading media to LinkedIn:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+      });
+      throw new BadRequestException('Failed to upload media to LinkedIn.');
+    }
+  }
+  
+
+
+  private async publishPostToLinkedIn(content: string, mediaAsset: string | null, accessToken: string) {
+    try {
+      const personUrn = await this.getPersonUrn(accessToken);
+  
+      Logger.log("Person Urn:", personUrn);
+      Logger.log("Media Asset:", mediaAsset);
+  
+      const postResponse = await axios.post(
+        'https://api.linkedin.com/v2/shares',
+        {
+          content: {
+            contentEntities: mediaAsset
+              ? [{ entity: mediaAsset }]  // Correct schema for media asset
+              : [],
+            title: content,
+          },
+          owner: personUrn,
+          subject: 'Posting from NestJS',
+          text: mediaAsset ? undefined : { text: content },  // If media is present, do not send text
+          distribution: {
+            linkedInDistributionTarget: {
+              connectionsOnly: true,  // This ensures the post is shared with your connections only
+            },
+          },
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+  
+      Logger.log('Post published successfully:', postResponse.data);
+    } catch (error) {
+      Logger.error('Error publishing post to LinkedIn:', error);
+      throw new BadRequestException('Failed to publish post to LinkedIn.');
+    }
+  }
+  
+}

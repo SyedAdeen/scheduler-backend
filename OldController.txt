@@ -52,10 +52,11 @@ export class PostsController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 201, description: 'Post created successfully' })
   @UseInterceptors(FileFieldsInterceptor([
-    { name: 'Media Carousel', maxCount: 10 },
-    { name: 'Image', maxCount: 1 },
-    { name: 'Video', maxCount: 1 },
-    { name: 'Document', maxCount: 5 },
+    { name: 'Media Carousel', maxCount: 10 }, // Allow up to 10 images for carousel
+    { name: 'Image', maxCount: 1 },           // Allow a single image
+    { name: 'Video', maxCount: 1 },           // Allow a single video
+    { name: 'Poll', maxCount: 1 },            // Allow one poll document
+    { name: 'Document', maxCount: 5 },        // Allow up to 5 documents
   ]))
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -69,21 +70,6 @@ export class PostsController {
           type: 'string', 
           enum: ['Media Carousel', 'Image', 'Video', 'Poll', 'Document'],
           description: 'Type of media being uploaded. Use this field to determine which files are relevant.' 
-        },
-        poll: {
-          type: 'object',
-          properties: {
-            question: { type: 'string' },
-            options: {
-              type: 'array',
-              items: { 
-                type: 'object',
-                properties: {
-                  text: { type: 'string' }
-                }
-              }
-            }
-          }
         },
         'Media Carousel': {
           type: 'array',
@@ -100,10 +86,15 @@ export class PostsController {
           format: 'binary',
           description: 'Video file (only one allowed). Only relevant if mediaType is "Video".'
         },
+        'Poll': {
+          type: 'string',
+          format: 'binary',
+          description: 'Poll document (only one allowed). Only relevant if mediaType is "Poll".'
+        },
         'Document': {
           type: 'string',
           format: 'binary',
-          description: 'Document (only one allowed).'
+          description: 'Document (only one allowed). Only relevant if mediaType is "Document".'
         },
       },
     },
@@ -115,20 +106,21 @@ export class PostsController {
       'Media Carousel'?: Express.Multer.File[],
       'Image'?: Express.Multer.File[],
       'Video'?: Express.Multer.File[],
+      'Poll'?: Express.Multer.File[],
       'Document'?: Express.Multer.File[],
     },
     @Req() request: any
   ): Promise<void> {
     const user = request.user;
+    
+    // Handle metadata and convert body to DTO
+    const { content, recurring, scheduled, mediaType } = body;
+    const createPostDto = plainToClass(CreatePostDto, { content, recurring, scheduled, mediaType }, { enableImplicitConversion: true });
 
-   
-    // Convert body to DTO
-    const createPostDto = plainToClass(CreatePostDto, body, { enableImplicitConversion: true });
-
-
-    // Your existing logic for handling files and creating the post
+    // Combine all files into a single array of media files based on mediaType
     let mediaFiles: Express.Multer.File[] = [];
-    switch (createPostDto.mediaType) {
+
+    switch (mediaType) {
       case 'Media Carousel':
         mediaFiles = files['Media Carousel'] || [];
         break;
@@ -138,22 +130,42 @@ export class PostsController {
       case 'Video':
         mediaFiles = Array.isArray(files['Video']) ? files['Video'] : files['Video'] ? [files['Video']] : [];
         break;
+      case 'Poll':
+        mediaFiles = Array.isArray(files['Poll']) ? files['Poll'] : files['Poll'] ? [files['Poll']] : [];
+        break;
       case 'Document':
         mediaFiles = Array.isArray(files['Document']) ? files['Document'] : files['Document'] ? [files['Document']] : [];
-        break;
-      case 'Poll':
         break;
       default:
         throw new BadRequestException('Invalid media type');
     }
-
-    console.log("Media Files",mediaFiles);
-  
     Logger.log("In create post controller");
     
     // Call the service method with the necessary data
-    return this.postsService.createPost(user.id, integrationId, createPostDto, mediaFiles);
+    return this.postsService.createPost(user.id, integrationId, createPostDto, mediaFiles, mediaType);
   }
+
   
+  // @Post(':postId/upload')
+  // @ApiBearerAuth('access-token')
+  // @UseGuards(JwtAuthGuard)
+  // @ApiOperation({ summary: 'Upload media for a specific post' })
+  // @ApiResponse({ status: 401, description: 'Unauthorized' })
+  // @ApiResponse({ status: 200, description: 'Media uploaded successfully' })
+  // @UseInterceptors(FileFieldsInterceptor([
+  //   { name: 'media', maxCount: 10 },
+  // ]))
+  // async uploadMedia(
+  //   @Param('postId') postId: number,
+  //   @UploadedFiles() files: { media?: Express.Multer.File[] }
+  // ): Promise<void> {
+  //   if (!files || !files.media) {
+  //     throw new BadRequestException('No media files provided');
+  //   }
+    
+  //   const mediaFiles = files.media;
+  //   await this.postsService.uploadMedia(postId, mediaFiles);
+  // }
+
 
 }
