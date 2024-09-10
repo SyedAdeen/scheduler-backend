@@ -29,4 +29,6 @@ export class Post extends Base {
   @OneToMany(() => PostMedia, postMedia => postMedia.post)
   postMedia: PostMedia[];
 
+  @Column({ type: 'jsonb', nullable: true })
+  metadata: Record<string, any>;  
 }

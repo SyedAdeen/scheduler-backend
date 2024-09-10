@@ -1,10 +1,11 @@
 import { BadRequestException, Injectable, Logger, NotFoundException, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { QueryResult, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { IntegrationPostsTypes } from '../../common/database/entities/integration-posts-types.entity';
 import { Post } from '../../common/database/entities/post.entity';
 import { PostMedia } from '../../common/database/entities/post-media.entity';
 import { UserIntegration } from '../../common/database/entities/user-integration.entity';
+import { Integration } from '@entities/integration.entity';
 import { CreatePostDto } from '../dtos/create-post.dto';
 import { v2 as Cloudinary } from 'cloudinary';
 import axios from 'axios';
@@ -19,6 +20,8 @@ export class PostsService {
     private readonly integrationPostsTypesRepository: Repository<IntegrationPostsTypes>,
     @InjectRepository(Post)
     private readonly postRepository: Repository<Post>,
+    @InjectRepository(Integration)
+    private readonly integrationRepository: Repository<Integration>,
     @InjectRepository(PostMedia)
     private readonly postMediaRepository: Repository<PostMedia>,
     @InjectRepository(UserIntegration)
@@ -52,18 +55,42 @@ export class PostsService {
     integrationId: number,
     createPostDto: CreatePostDto,
     files: Express.Multer.File[],
-  ): Promise<void> {
+  ): Promise<{message:string}> {
     this.logger.log('Create post DTO:', createPostDto);
-    const mediaType = createPostDto.mediaType;
-    console.log(mediaType);
-    console.log(createPostDto.poll);
     
+    const mediaType = createPostDto.mediaType;
+    
+    Logger.log(mediaType);
+    
+    Logger.log(createPostDto.poll);
 
+    let pollObject=null;
+
+    if(mediaType==='Poll')
+    {
+      const plainDto = classToPlain(createPostDto);
+  
+      pollObject = plainDto.poll || {}  
+
+      if (typeof pollObject === 'string') {
+        try {
+          pollObject = JSON.parse(pollObject);
+        } catch (error) {
+          this.logger.error('Failed to parse pollObject:', {
+            message: error.message,
+          });
+          throw new BadRequestException('Invalid poll object format.');
+        }
+      }     
+
+    }
+    
     const post = this.postRepository.create({
       ...createPostDto,
       integration: { id: integrationId },
       user: { id: userId },
       status: 'Post Created',
+      metadata: pollObject
     });
 
     await this.postRepository.save(post);
@@ -93,7 +120,7 @@ export class PostsService {
 
     if (!createPostDto.recurring && !createPostDto.scheduled) {
       this.logger.log('Post immediately');
-      await this.postToPlatform(post.id, integrationId, createPostDto);
+      return await this.postToPlatform(post.id, integrationId, createPostDto);
     } else if (createPostDto.scheduled) {
       this.schedulePost(post.id, createPostDto.scheduled);
     }
@@ -107,14 +134,16 @@ export class PostsService {
     const platform = await this.getPlatformByIntegrationId(integrationId);
     const mediaType = createPostDto.mediaType;
 
-    if (platform === 'LinkedIn') {
-      await this.postToLinkedIn(postId, integrationId, createPostDto);
+    switch (platform) {
+      case 'LinkedIn':
+        return await this.postToLinkedIn(postId, integrationId, createPostDto);
+        break;
     }
   }
 
   private async getPlatformByIntegrationId(integrationId: number): Promise<string> {
-    // Implement actual logic to determine platform based on integrationId
-    return 'LinkedIn';  // Example
+    const integration = await this.integrationRepository.findOne({where:{id:integrationId}})
+    return integration.platform;
   }
 
   private async postToLinkedIn(postId: number, integrationId: number, createPostDto:CreatePostDto) {
@@ -129,7 +158,7 @@ export class PostsService {
     const mediaType = createPostDto.mediaType;
 
     this.logger.log('Post:', post);
-    console.log("Media Type in this.postToLinkedIn",mediaType);
+    Logger.log("Media Type in this.postToLinkedIn",mediaType);
 
     const accessToken = await this.getAccessToken(post.user.id, integrationId);
 
@@ -149,14 +178,12 @@ export class PostsService {
         }
       }
 
-    }
-    
+    }    
 
     if (mediaAssets.length === 0 && mediaType!=='Poll') {
-      console.log("I am here");
-      await this.publishPostToLinkedInContentOnly(post.content || 'Default content text', accessToken);
+      return await this.publishPostToLinkedInContentOnly(post.content || 'Default content text', accessToken);
     } else {
-      await this.publishPostToLinkedInContentWithMedia(post, mediaAssets, accessToken, createPostDto );
+      return await this.publishPostToLinkedInContentWithMedia(post, mediaAssets, accessToken, createPostDto );
     }
   }
 
@@ -213,7 +240,7 @@ export class PostsService {
         recipe = 'urn:li:digitalmediaRecipe:feedshare-image';
       }
 
-      console.log("Recipe:",recipe);
+      Logger.log("Recipe:",recipe);
   
       const registerResponse = await axios.post(
         'https://api.linkedin.com/v2/assets?action=registerUpload',
@@ -225,7 +252,7 @@ export class PostsService {
               identifier: 'urn:li:userGeneratedContent',
               relationshipType: 'OWNER',
             }],
-            // supportedUploadMechanism: ['SYNCHRONOUS_UPLOAD'],
+            supportedUploadMechanism: ['SYNCHRONOUS_UPLOAD'],
           },
         },
         {
@@ -236,8 +263,6 @@ export class PostsService {
         }
       );
 
-      console.log("Register Response = ", registerResponse);
-  
       const uploadUrl = registerResponse.data.value.uploadMechanism['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest'].uploadUrl;
       const asset = registerResponse.data.value.asset;
   
@@ -260,12 +285,11 @@ export class PostsService {
     }
   }
   
-
   private async publishPostToLinkedInContentOnly(content: string, accessToken: string) {
     try {
       const personUrn = await this.getPersonUrn(accessToken);
 
-      console.log(personUrn);
+      Logger.log(personUrn);
 
       const postResponse = await axios.post(
         'https://api.linkedin.com/v2/shares',
@@ -293,7 +317,6 @@ export class PostsService {
 
       this.logger.log('Post published successfully:', postResponse.data);
       return {message:"Post Published Successfully"};
-
     } catch (error) {
       this.logger.error('Error publishing post to LinkedIn:', {
         message: error.message,
@@ -315,18 +338,22 @@ export class PostsService {
       // Extract media type and handle pollObject
       const mediaType = plainDto.mediaType;
       let pollObject = plainDto.poll || {};
-  
-      // Check if pollObject is a string and parse if necessary
-      if (typeof pollObject === 'string') {
-        try {
-          pollObject = JSON.parse(pollObject);
-        } catch (error) {
-          this.logger.error('Failed to parse pollObject:', {
-            message: error.message,
-          });
-          throw new BadRequestException('Invalid poll object format.');
+
+      if(mediaType==='Poll')
+      {
+        if (typeof pollObject === 'string') {
+          try {
+            pollObject = JSON.parse(pollObject);
+          } catch (error) {
+            this.logger.error('Failed to parse pollObject:', {
+              message: error.message,
+            });
+            throw new BadRequestException('Invalid poll object format.');
+          }
         }
       }
+  
+      
   
       // Determine media category
       const mediaCategory = mediaAssets.length > 1
@@ -428,10 +455,6 @@ export class PostsService {
       });
       throw new BadRequestException('Failed to publish post to LinkedIn.');
     }
-  }
-  
-  
-
-  
+  }   
   
 }

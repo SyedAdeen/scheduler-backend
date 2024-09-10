@@ -20,12 +20,12 @@ import { CreatePostDto } from './dtos/create-post.dto';
 import { plainToClass } from 'class-transformer';
 
 
-@Controller('integrations/:integrationId')
+@Controller('')
 @ApiTags('Posts')
 export class PostsController {
   constructor(private readonly postsService: PostsService) {}
 
-  @Get('post-types')
+  @Get('integrations/:integrationId/post-types')
   @ApiBearerAuth('access-token')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Get Post Types for a specific integration' })
@@ -38,18 +38,16 @@ export class PostsController {
   async getPostTypesForIntegration(
     @Param('integrationId') integrationId: number
   ): Promise<GetPostTypesDto[]> {
-    console.log("Integration Id", integrationId);
     const postTypes = await this.postsService.getPostTypesForIntegration(integrationId);
-    console.log(postTypes);
     return postTypes;
   }
 
-
-  @Post('create')
+  @Post('/posts')
   @ApiBearerAuth('access-token')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Create a new post' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 400, description: 'Failed to publish the post' })
   @ApiResponse({ status: 201, description: 'Post created successfully' })
   @UseInterceptors(FileFieldsInterceptor([
     { name: 'Media Carousel', maxCount: 10 },
@@ -62,6 +60,7 @@ export class PostsController {
     schema: {
       type: 'object',
       properties: {
+        integrationId: { type: 'number' },
         content: { type: 'string' },
         recurring: { type: 'boolean' },
         scheduled: { type: 'string', format: 'date-time', nullable: true },
@@ -110,7 +109,6 @@ export class PostsController {
   })
   async createPost(
     @Body() body: any,
-    @Param('integrationId') integrationId: number,
     @UploadedFiles() files: {
       'Media Carousel'?: Express.Multer.File[],
       'Image'?: Express.Multer.File[],
@@ -118,14 +116,12 @@ export class PostsController {
       'Document'?: Express.Multer.File[],
     },
     @Req() request: any
-  ): Promise<void> {
-    const user = request.user;
+  ): Promise<{message:string}> {
 
-   
+    const user = request.user;   
     // Convert body to DTO
     const createPostDto = plainToClass(CreatePostDto, body, { enableImplicitConversion: true });
-
-
+    const integrationId=body.integrationId;
     // Your existing logic for handling files and creating the post
     let mediaFiles: Express.Multer.File[] = [];
     switch (createPostDto.mediaType) {
@@ -146,14 +142,8 @@ export class PostsController {
       default:
         throw new BadRequestException('Invalid media type');
     }
-
-    console.log("Media Files",mediaFiles);
-  
-    Logger.log("In create post controller");
-    
     // Call the service method with the necessary data
-    return this.postsService.createPost(user.id, integrationId, createPostDto, mediaFiles);
-  }
-  
+    return this.postsService.createPost(user.id, integrationId, createPostDto, mediaFiles);    
+  }  
 
 }

@@ -42,6 +42,11 @@ export class CreatePostsTable1725629339532 implements MigrationInterface {
                     isNullable: true,
                 },
                 {
+                    name: 'metadata',
+                    type: 'jsonb',
+                    isNullable: true,  
+                },
+                {
                     name: 'created_at',
                     type: 'timestamp',
                     default: 'CURRENT_TIMESTAMP',
