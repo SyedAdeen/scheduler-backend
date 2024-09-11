@@ -40,7 +40,7 @@ export class CreatePostDto {
   recurring: boolean;
 
   @ApiProperty({ description: 'Media Type of post', enum: MediaType })
-  @IsEnum(MediaType)  // Use enum validation
+  @IsEnum(MediaType)  
   mediaType: MediaType;
 
   @ApiProperty({ description: 'The scheduled date for the post', required: false, type: 'string', format: 'date-time' })
