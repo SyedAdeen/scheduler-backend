@@ -16,7 +16,7 @@ import { FileFieldsInterceptor } from '@nestjs/platform-express'; // Correct imp
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PostsService } from './services/posts.service';
 import { GetPostTypesDto } from './dtos/get-post-types.dto';
-import { CreatePostDto } from './dtos/create-post.dto';
+import { CreatePostDto, MediaType } from './dtos/create-post.dto';
 import { plainToClass } from 'class-transformer';
 
 
@@ -66,7 +66,7 @@ export class PostsController {
         scheduled: { type: 'string', format: 'date-time', nullable: true },
         mediaType: { 
           type: 'string', 
-          enum: ['Media Carousel', 'Image', 'Video', 'Poll', 'Document'],
+          enum: Object.values(MediaType),
           description: 'Type of media being uploaded. Use this field to determine which files are relevant.' 
         },
         poll: {
@@ -116,34 +116,37 @@ export class PostsController {
       'Document'?: Express.Multer.File[],
     },
     @Req() request: any
-  ): Promise<{message:string}> {
+  ): Promise<{ message: string }> {
 
-    const user = request.user;   
+    const user = request.user;
+    
     // Convert body to DTO
     const createPostDto = plainToClass(CreatePostDto, body, { enableImplicitConversion: true });
-    const integrationId=body.integrationId;
-    // Your existing logic for handling files and creating the post
+    const integrationId = body.integrationId;
+    
+    // Handle file assignment based on media type
     let mediaFiles: Express.Multer.File[] = [];
     switch (createPostDto.mediaType) {
-      case 'Media Carousel':
+      case MediaType.MediaCarousel:
         mediaFiles = files['Media Carousel'] || [];
         break;
-      case 'Image':
+      case MediaType.IMAGE:
         mediaFiles = Array.isArray(files['Image']) ? files['Image'] : files['Image'] ? [files['Image']] : [];
         break;
-      case 'Video':
+      case MediaType.VIDEO:
         mediaFiles = Array.isArray(files['Video']) ? files['Video'] : files['Video'] ? [files['Video']] : [];
         break;
-      case 'Document':
+      case MediaType.DOCUMENT:
         mediaFiles = Array.isArray(files['Document']) ? files['Document'] : files['Document'] ? [files['Document']] : [];
         break;
-      case 'Poll':
+      case MediaType.POLL:
+        // No files for polls
         break;
       default:
         throw new BadRequestException('Invalid media type');
     }
-    // Call the service method with the necessary data
-    return this.postsService.createPost(user.id, integrationId, createPostDto, mediaFiles);    
-  }  
 
+    // Call the service method with the necessary data
+    return this.postsService.createPost(user.id, integrationId, createPostDto, mediaFiles);
+  }
 }
