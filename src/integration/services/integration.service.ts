@@ -63,8 +63,8 @@ export class IntegrationService {
     const scope = integration.metadata.scope;
 
     // Construct the dynamic redirect_uri
-    // const redirect_uri = `${host}:${port}${redirectUri}`;
-    const redirect_uri = `${host}${redirectUri}`;
+    const redirect_uri = `${host}:${port}${redirectUri}`;
+    // const redirect_uri = `${host}${redirectUri}`;
 
     // Generate the authorization URL
     const authUrl = `${oauthUri}?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirect_uri)}&response_type=code&state=${encodeURIComponent(state)}&scope=${encodeURIComponent(scope)}`;
@@ -106,8 +106,8 @@ export class IntegrationService {
     const redirectUri = integration.metadata.redirectUri;
     const host = this.configService.get<string>('HOST', '127.0.0.1'); 
     const port = this.configService.get<string>('PORT', '3001'); 
-    // const redirect_uri = `${host}:${port}${redirectUri}`;
-    const redirect_uri = `${host}${redirectUri}`;
+    const redirect_uri = `${host}:${port}${redirectUri}`;
+    // const redirect_uri = `${host}${redirectUri}`;
     Logger.log("redirectUri:", redirect_uri);
  
     // Make the request to exchange code for tokens

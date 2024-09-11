@@ -4,7 +4,7 @@ import {
     Entity,
     OneToMany
 } from "typeorm";
-
+import { Post } from './post.entity'; // Import Post entity
 import { UserIntegration } from './user-integration.entity'; 
 import { Exclude } from "class-transformer";
 import { IntegrationMetadata } from "../interfaces/integration.metadata.interface";
@@ -18,6 +18,9 @@ export class Integration extends Base {
 
   @OneToMany(() => IntegrationPostsTypes, integrationPostsTypes => integrationPostsTypes.integration)
   integrationPostsTypes: IntegrationPostsTypes[];
+
+  @OneToMany(() => Post, post => post.integration) // One-to-many relationship with Post
+  posts: Post[];
 
   @Column({ unique: true })
   platform: string; 

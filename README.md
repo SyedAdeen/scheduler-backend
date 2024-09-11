@@ -12,6 +12,7 @@
 - **Delete User Integration Endpoint:** `/integrations/:integrationId`
 - **Exchange Tokens for Access Token:** `/integrations/exchange-code`
 - **Get Post Types of Integration** `/integrations/:integrationId/post-types`
+- **Post Method to create posts** `/posts`
 - **Swagger:** `/docs`
 
 ### Steps to Start the Project:

@@ -3,10 +3,10 @@ import {
     Column,
     DeleteDateColumn,
     Entity,
-    ManyToOne,
     OneToMany,
 } from "typeorm";
-import { Exclude, Transform } from "class-transformer";
+import { Exclude } from "class-transformer";
+import { Post } from './post.entity'; // Import Post entity
 
 export enum UserStatus {
     Blocked = -1,
@@ -49,6 +49,9 @@ export class User extends Base {
 
     @Column({ nullable: true })
     googleid: string;
+
+    @OneToMany(() => Post, post => post.user) // One-to-many relationship with Post
+    posts: Post[];
 
     @DeleteDateColumn({ name: "deleted_at", nullable: true, type: "timestamp" })
     deletedAt: Date;
