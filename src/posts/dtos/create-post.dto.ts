@@ -40,6 +40,24 @@ export class CreatePostDto {
   @Transform(({ value }) => value || undefined)
   scheduled?: string;
 
+  @ApiProperty({ description: 'The Recurring Type for the Post', required: false, type: 'string' })
+  @IsOptional()
+  @IsDateString()
+  @Transform(({ value }) => value || undefined)
+  recurring_type?: string;
+
+  @ApiProperty({ description: 'Weekly day of Recurring', required: false, type: 'string' })
+  @IsOptional()
+  @IsDateString()
+  @Transform(({ value }) => value || undefined)
+  dayofweek?: string;
+
+  @ApiProperty({ description: 'Weekly day of Recurring', required: false, type: 'string' })
+  @IsOptional()
+  @IsDateString()
+  @Transform(({ value }) => value || undefined)
+  dateofmonth?: number;
+
   @ApiProperty({ description: 'Poll object', type: PollDto, required: false })
   @IsOptional()
   @ValidateNested()

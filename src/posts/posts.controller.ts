@@ -104,7 +104,7 @@ export class PostsController {
           format: 'binary',
           description: 'Document (only one allowed).'
         },
-      },
+      }, 
     },
   })
   async createPost(
@@ -118,9 +118,24 @@ export class PostsController {
     @Req() request: any
   ): Promise<{message:string}> {
 
+    console.log("body =",body);
+
+    
     const user = request.user;   
     // Convert body to DTO
+    body.recurring = body.recurring === 'true';
+
+    console.log("recurring of body = ", body.recurring);
+
+    // Convert body to DTO
     const createPostDto = plainToClass(CreatePostDto, body, { enableImplicitConversion: true });
+
+    createPostDto.recurring=body.recurring;
+    
+
+    console.log("Files = ", files);
+
+    console.log("create post dto", createPostDto);
     const integrationId=body.integrationId;
     // Your existing logic for handling files and creating the post
     let mediaFiles: Express.Multer.File[] = [];
@@ -129,7 +144,7 @@ export class PostsController {
         mediaFiles = files['Media Carousel'] || [];
         break;
       case 'Image':
-        mediaFiles = Array.isArray(files['Image']) ? files['Image'] : files['Image'] ? [files['Image']] : [];
+        mediaFiles = Array.isArray(files?.['Image']) ? files['Image'] : files?.['Image'] ? [files['Image']] : [];
         break;
       case 'Video':
         mediaFiles = Array.isArray(files['Video']) ? files['Video'] : files['Video'] ? [files['Video']] : [];
@@ -144,6 +159,6 @@ export class PostsController {
     }
     // Call the service method with the necessary data
     return this.postsService.createPost(user.id, integrationId, createPostDto, mediaFiles);    
-  }  
+  }   
 
 }
