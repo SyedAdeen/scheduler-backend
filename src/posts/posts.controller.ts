@@ -164,4 +164,16 @@ export class PostsController {
     return this.postsService.createPost(user.id, body.integrationId, createPostDto, mediaFiles);    
   }
 
+  @Get('/posts')
+  @ApiBearerAuth('access-token')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Get all posts with related data' })
+  @ApiResponse({ status: 200, description: 'Data retrieved successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 400, description: 'Failed to retrieve posts' })
+  async getPosts(@Req() request) {
+    const user = request.user;
+    console.log("At posts controller = ", user);
+    return await this.postsService.getPostsForUser(user.id);
+  }
 }

@@ -12,6 +12,8 @@ import axios from 'axios';
 import { classToPlain } from 'class-transformer';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
+import { PostHistory } from '@entities/post-history.entity';
+import { create } from 'domain';
 
 @Injectable()
 export class PostsService {
@@ -24,6 +26,8 @@ export class PostsService {
     private readonly postRepository: Repository<Post>,
     @InjectRepository(Integration)
     private readonly integrationRepository: Repository<Integration>,
+    @InjectRepository(PostHistory)
+    private readonly postHistoryRepository: Repository<PostHistory>,
     @InjectRepository(PostMedia)
     private readonly postMediaRepository: Repository<PostMedia>,
     @InjectRepository(UserIntegration)
@@ -134,28 +138,36 @@ export class PostsService {
         integrationId,
         createPostDto,
       });
-
       const result = await job.finished();  // Waits for the job to finish
-
       if (result && result.message === 'Duplicate post detected. Post was not published again.') {
+        await this.createPostHistory(post.id, 'Unable to Publish Post', 'Duplicate post detected. Post was not published again.', false);
         return { message: 'Duplicate post detected. Post was not published again.' };
       } else if (result) {
         return { message: "Post Published Successfully" };
       } else {
+        await this.createPostHistory(post.id, 'Failed to Publish', 'Failed to publish the post.', false);
         throw new InternalServerErrorException('Failed to publish the post.');
       } 
     }
       
     } catch (error) {
-
       this.logger.error('Error creating post:', { message: error.message });
       if (error instanceof BadRequestException || error instanceof InternalServerErrorException) {
         throw error; // Re-throw known exceptions
       }
       throw new InternalServerErrorException('An unexpected error occurred while creating the post.');
-      
     }
     
+  }
+
+  private async createPostHistory(postId: number, status: string, details: string, success:boolean) {
+    const postHistory = this.postHistoryRepository.create({
+      post: { id: postId },
+      status,
+      details,
+      success,
+    });
+    await this.postHistoryRepository.save(postHistory);
   }
 
   private async schedulePost(
@@ -179,6 +191,22 @@ export class PostsService {
         removeOnFail: true,
       });
       this.logger.log(`Recurring post scheduled with cron pattern: ${cronPattern}`);
+      if (createPostDto.recurring && createPostDto.recurring_type) {
+        let details = `Recurring Post scheduled with type ${createPostDto.recurring_type}`;
+        
+        if (createPostDto.scheduled) {
+          details += ` and scheduled at ${createPostDto.scheduled}`;
+        }
+        
+        if (createPostDto.dayofweek) {
+          details += ` on ${createPostDto.dayofweek}`;
+        }
+        
+        if (createPostDto.dateofmonth) {
+          details += ` on the ${createPostDto.dateofmonth}${this.getOrdinalSuffix(createPostDto.dateofmonth)}`;
+        }
+      
+      }
       return {message:"Recurring Post has been scheduled"};
     } else if (scheduledDate) {
       // For one-time scheduled posts, you can use a specific cron pattern
@@ -236,7 +264,16 @@ export class PostsService {
     }
   }
 
-
+  private getOrdinalSuffix(day: number): string {
+    if (day >= 11 && day <= 13) return 'th';
+    switch (day % 10) {
+      case 1: return 'st';
+      case 2: return 'nd';
+      case 3: return 'rd';
+      default: return 'th';
+    }
+  }
+  
 
   public async postToPlatform(postId: number, integrationId: number, createPostDto:CreatePostDto) {
     const platform = await this.getPlatformByIntegrationId(integrationId);
@@ -288,7 +325,7 @@ export class PostsService {
     }    
 
     if (mediaAssets.length === 0 && mediaType!=='Poll') {
-      return await this.publishPostToLinkedInContentOnly(post.content || 'Default content text', accessToken);
+      return await this.publishPostToLinkedInContentOnly(createPostDto,postId, post.content || 'Default content text', accessToken);
     } else {
       return await this.publishPostToLinkedInContentWithMedia(post, mediaAssets, accessToken, createPostDto );
     }
@@ -392,7 +429,7 @@ export class PostsService {
     }
   }
   
-  private async publishPostToLinkedInContentOnly(content: string, accessToken: string) {
+  private async publishPostToLinkedInContentOnly(createPostDto:CreatePostDto, postId:number,content: string, accessToken: string) {
     try {
       const personUrn = await this.getPersonUrn(accessToken);
 
@@ -421,10 +458,17 @@ export class PostsService {
           },
         }
       );
-
       this.logger.log('Post published successfully:', postResponse.data);
+      if(createPostDto.scheduled)
+      {
+        await this.createPostHistory(postId, 'Published', `Post Published Successfully, scheduled on ${createPostDto.scheduled}}`, true);
+      }
+      else{
+        await this.createPostHistory(postId, 'Published', 'One Time Post Published Successfully', true);
+      }
+
       return {message:"Post Published Successfully"};
-    } catch (error) {
+    } catch (error) { 
       if (error.response && error.response.status === 422 && error.response.data.errorDetails?.inputErrors?.[0]?.code === 'DUPLICATE_POST') {
         this.logger.warn('Duplicate post detected:', error.response.data.errorDetails.inputErrors[0].description);
         return { message: 'Duplicate post detected. Post was not published again.' };
@@ -434,7 +478,8 @@ export class PostsService {
         response: error.response?.data,
         status: error.response?.status,
       });
-      throw new BadRequestException('Failed to publish post to LinkedIn.');
+      await this.createPostHistory(postId, 'Failed to Publish', error, false);
+      throw new BadRequestException('Failed to publish post to LinkedIn.');      
     }
   }
 
@@ -459,6 +504,7 @@ export class PostsService {
             this.logger.error('Failed to parse pollObject:', {
               message: error.message,
             });
+            await this.createPostHistory(post.id, 'Failed to Publish', error, false);
             throw new BadRequestException('Invalid poll object format.');
           }
         }
@@ -515,6 +561,8 @@ export class PostsService {
         );
   
         this.logger.log('Poll published successfully:', response.data);
+        await this.createPostHistory(post.id, 'Published', 'Poll Published Successfully', true);
+        
       } else {
         // Handle other media types
         const postPayload = {
@@ -551,9 +599,9 @@ export class PostsService {
               'Content-Type': 'application/json',
             },
           }
-        );
-  
+        );  
         this.logger.log('Post published successfully:', response.data);
+        await this.createPostHistory(post.id, 'Published', `Post of media type ${createPostDto.mediaType} Published Successfully`, true);
         return {message:"Post Published Successfully"};
       }
     } catch (error) {
@@ -562,8 +610,34 @@ export class PostsService {
         response: error.response?.data,
         status: error.response?.status,
       });
+      await this.createPostHistory(post.id, 'Failed to Publish', error, false);
       throw new BadRequestException('Failed to publish post to LinkedIn.');
     }
-  }   
+  }
+  
+  async getPostsForUser(userId: number) {
+    const posts = await this.postRepository
+      .createQueryBuilder('post')
+      .leftJoinAndSelect('post.integration', 'integration')
+      .leftJoinAndSelect('post.postMedia', 'postMedia')
+      .leftJoinAndSelect('post.postHistory', 'postHistory')
+      .where('post.user_id = :userId', { userId })
+      .select([
+        'post.id',
+        'post.content',
+        'post.recurring',
+        'post.scheduled',
+        'integration.platform',
+        'postMedia.mediaUrl',
+      ])
+      .addSelect('COUNT(postHistory.id)', 'historyCount')
+      .groupBy('post.id')
+      .addGroupBy('integration.platform')
+      .addGroupBy('postMedia.mediaUrl')
+      .orderBy('post.id', 'DESC')  // Sort in descending order by post.id
+      .getRawMany();
+
+    return posts;
+  }
   
 }
