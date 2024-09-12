@@ -1,6 +1,15 @@
-import { IsString, IsOptional, IsBoolean, IsDateString, ValidateNested, IsArray } from 'class-validator';
+import { IsEnum, IsOptional, IsBoolean, IsDateString, ValidateNested, IsArray, IsString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
+
+// Define the enum in the same file
+export enum MediaType {
+  IMAGE = 'Image',
+  VIDEO = 'Video',
+  DOCUMENT = 'Document',
+  POLL = 'Poll',
+  MediaCarousel = 'Media Carousel'
+}
 
 class PollOptionDto {
   @ApiProperty({ description: 'Text of the poll option' })
@@ -30,9 +39,9 @@ export class CreatePostDto {
   @Transform(({ value }) => value === 'true', { toClassOnly: true })
   recurring: boolean;
 
-  @ApiProperty({ description: 'Media Type of post' })
-  @IsString()
-  mediaType: string;
+  @ApiProperty({ description: 'Media Type of post', enum: MediaType })
+  @IsEnum(MediaType)  
+  mediaType: MediaType;
 
   @ApiProperty({ description: 'The scheduled date for the post', required: false, type: 'string', format: 'date-time' })
   @IsOptional()
