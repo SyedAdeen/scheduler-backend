@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException, Inject } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, Inject, InternalServerErrorException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { IntegrationPostsTypes } from '../../common/database/entities/integration-posts-types.entity';
@@ -59,7 +59,8 @@ export class PostsService {
     createPostDto: CreatePostDto,
     files: Express.Multer.File[],
   ): Promise<{message:string}> {
-    this.logger.log('Create post DTO:', createPostDto);
+    try {
+      this.logger.log('Create post DTO:', createPostDto);
     
     const mediaType = createPostDto.mediaType;
     
@@ -123,20 +124,38 @@ export class PostsService {
     if (createPostDto.recurring || createPostDto.scheduled) {
       // Handle scheduling
       if (createPostDto.scheduled) {
-        this.schedulePost(post.id, createPostDto.scheduled, integrationId, createPostDto);
+        return this.schedulePost(post.id, createPostDto.scheduled, integrationId, createPostDto);
       }
     } else {
       this.logger.log("Post Immediately");
       // Enqueue immediate post
-      await this.postSchedulerQueue.add('post-immediate', {
+      const job = await this.postSchedulerQueue.add('post-immediate', {
         postId: post.id,
         integrationId,
         createPostDto,
       });
+
+      const result = await job.finished();  // Waits for the job to finish
+
+      if (result && result.message === 'Duplicate post detected. Post was not published again.') {
+        return { message: 'Duplicate post detected. Post was not published again.' };
+      } else if (result) {
+        return { message: "Post Published Successfully" };
+      } else {
+        throw new InternalServerErrorException('Failed to publish the post.');
+      } 
     }
-    return { message: 'Post processed' };
+      
+    } catch (error) {
 
-
+      this.logger.error('Error creating post:', { message: error.message });
+      if (error instanceof BadRequestException || error instanceof InternalServerErrorException) {
+        throw error; // Re-throw known exceptions
+      }
+      throw new InternalServerErrorException('An unexpected error occurred while creating the post.');
+      
+    }
+    
   }
 
   private async schedulePost(
@@ -144,12 +163,12 @@ export class PostsService {
     scheduledDate: string, 
     integrationId: number, 
     createPostDto: CreatePostDto
-  ): Promise<void> {
+  ): Promise<{message:string}> {
   
     if (createPostDto.recurring) {
       // For recurring posts, use cron
       const cronPattern = this.generateCronPatternFromDate(scheduledDate, createPostDto); // This function generates a cron pattern
-      console.log("recurring Cron Pattern = ", cronPattern);
+      this.logger.log("recurring Cron Pattern = ", cronPattern);
       await this.postSchedulerQueue.add('schedule-post', {
         postId,
         integrationId,
@@ -160,6 +179,7 @@ export class PostsService {
         removeOnFail: true,
       });
       this.logger.log(`Recurring post scheduled with cron pattern: ${cronPattern}`);
+      return {message:"Recurring Post has been scheduled"};
     } else if (scheduledDate) {
       // For one-time scheduled posts, you can use a specific cron pattern
       await this.postSchedulerQueue.add('schedule-post', {
@@ -172,6 +192,7 @@ export class PostsService {
         removeOnFail: true,
       });
       this.logger.log(`Post scheduled for: ${scheduledDate}`);
+      return {message: `Post scheduled for: ${scheduledDate}`};
     } 
   }
   
@@ -219,7 +240,6 @@ export class PostsService {
 
   public async postToPlatform(postId: number, integrationId: number, createPostDto:CreatePostDto) {
     const platform = await this.getPlatformByIntegrationId(integrationId);
-    const mediaType = createPostDto.mediaType;
 
     switch (platform) {
       case 'LinkedIn':
@@ -405,6 +425,10 @@ export class PostsService {
       this.logger.log('Post published successfully:', postResponse.data);
       return {message:"Post Published Successfully"};
     } catch (error) {
+      if (error.response && error.response.status === 422 && error.response.data.errorDetails?.inputErrors?.[0]?.code === 'DUPLICATE_POST') {
+        this.logger.warn('Duplicate post detected:', error.response.data.errorDetails.inputErrors[0].description);
+        return { message: 'Duplicate post detected. Post was not published again.' };
+      }
       this.logger.error('Error publishing post to LinkedIn:', {
         message: error.message,
         response: error.response?.data,

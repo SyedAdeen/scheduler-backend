@@ -11,6 +11,23 @@ export enum MediaType {
   MediaCarousel = 'Media Carousel'
 }
 
+export enum RecurringType {
+  DAILY = 'Daily',
+  WEEKLY = 'Weekly',
+  MONTHLY = 'Monthly',
+}
+
+// Define day of the week enum
+export enum DayOfWeek {
+  SUNDAY = 'Sunday',
+  MONDAY = 'Monday',
+  TUESDAY = 'Tuesday',
+  WEDNESDAY = 'Wednesday',
+  THURSDAY = 'Thursday',
+  FRIDAY = 'Friday',
+  SATURDAY = 'Saturday',
+}
+
 class PollOptionDto {
   @ApiProperty({ description: 'Text of the poll option' })
   @IsString()
@@ -49,19 +66,17 @@ export class CreatePostDto {
   @Transform(({ value }) => value || undefined)
   scheduled?: string;
 
-  @ApiProperty({ description: 'The Recurring Type for the Post', required: false, type: 'string' })
+  @ApiProperty({ description: 'The Recurring Type for the Post', enum: RecurringType, required: false })
   @IsOptional()
-  @IsDateString()
-  @Transform(({ value }) => value || undefined)
-  recurring_type?: string;
+  @IsEnum(RecurringType)
+  recurring_type?: RecurringType;
 
-  @ApiProperty({ description: 'Weekly day of Recurring', required: false, type: 'string' })
+  @ApiProperty({ description: 'Day of the week for recurring weekly posts', enum: DayOfWeek, required: false })
   @IsOptional()
-  @IsDateString()
-  @Transform(({ value }) => value || undefined)
-  dayofweek?: string;
+  @IsEnum(DayOfWeek)
+  dayofweek?: DayOfWeek;
 
-  @ApiProperty({ description: 'Weekly day of Recurring', required: false, type: 'string' })
+  @ApiProperty({ description: 'Date of the month for recurring monthly posts', required: false, type: 'string' })
   @IsOptional()
   @IsDateString()
   @Transform(({ value }) => value || undefined)

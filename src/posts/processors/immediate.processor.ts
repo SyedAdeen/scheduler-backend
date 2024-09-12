@@ -12,6 +12,12 @@ export class PostImmediateProcessor {
     const { postId, integrationId, createPostDto } = job.data;
 
     // Call the method to post immediately
-    return this.postsService.postToPlatform(postId, integrationId, createPostDto);
+    const result = this.postsService.postToPlatform(postId, integrationId, createPostDto);
+    // If the result contains a duplicate post message, return it
+    if ((await result).message === 'Duplicate post detected. Post was not published again.') {
+      return { message: 'Duplicate post detected. Post was not published again.' };
+    }
+
+    return result;
   }
 }
