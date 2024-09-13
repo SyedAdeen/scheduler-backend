@@ -11,7 +11,6 @@ import { PostHistory } from '@entities/post-history.entity';
 import { UserIntegration } from '@entities/user-integration.entity';
 import { PostQueueProcessor } from './processors/post-que.processor'; // Ensure the correct filename
 import { BullModule } from '@nestjs/bull';
-import { PostImmediateProcessor } from './processors/immediate.processor';
 
 @Module({
   imports: [
@@ -20,8 +19,8 @@ import { PostImmediateProcessor } from './processors/immediate.processor';
       name: 'post-scheduler',
     }),
   ],
-  providers: [PostsService, PostQueueProcessor, PostImmediateProcessor],
+  providers: [PostsService, PostQueueProcessor],
   controllers: [PostsController],
-  exports: [PostsService, PostQueueProcessor, PostImmediateProcessor],
+  exports: [PostsService, PostQueueProcessor],
 })
 export class PostsModule {}

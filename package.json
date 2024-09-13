@@ -49,6 +49,7 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "cloudinary": "^2.4.0",
+    "cron-parser": "^4.9.0",
     "crypto": "^1.0.1",
     "enum-values": "^1.2.1",
     "google-auth-library": "^9.14.0",

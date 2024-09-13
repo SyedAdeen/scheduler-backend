@@ -11,6 +11,6 @@ export class PostQueueProcessor {
     const { postId, integrationId, createPostDto } = job.data;
 
     // Call the method to publish the post
-    await this.postsService.postToPlatform(postId, integrationId, createPostDto);
+    return this.postsService.postToPlatform(postId, integrationId, createPostDto);
   }
 }

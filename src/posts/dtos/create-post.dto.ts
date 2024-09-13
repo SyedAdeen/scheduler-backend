@@ -8,13 +8,20 @@ export enum MediaType {
   VIDEO = 'Video',
   DOCUMENT = 'Document',
   POLL = 'Poll',
-  MediaCarousel = 'Media Carousel'
+  MediaCarousel = 'Media Carousel',
+  TEXT = 'Text'
 }
 
 export enum RecurringType {
   DAILY = 'Daily',
   WEEKLY = 'Weekly',
   MONTHLY = 'Monthly',
+}
+
+export enum PostStatus {
+  PUBLISHED = 'Published',
+  DUPLICATE = 'Duplicate',
+  FAILED = 'Failed',
 }
 
 // Define day of the week enum

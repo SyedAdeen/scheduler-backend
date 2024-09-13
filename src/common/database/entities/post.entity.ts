@@ -27,6 +27,9 @@ export class Post extends Base {
   @Column({ type: 'varchar', nullable: true })
   scheduled: string | null;
 
+  @Column({ type: 'varchar', nullable: true })
+  cronFormat: string | null;
+
   @OneToMany(() => PostMedia, postMedia => postMedia.post)
   postMedia: PostMedia[];
 
