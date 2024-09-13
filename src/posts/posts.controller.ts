@@ -160,7 +160,7 @@ export class PostsController {
       case MediaType.TEXT:
         break;
       default:
-        throw new BadRequestException('Invalid media type');
+        break;
     }
     // Call the service method with the necessary data
     return this.postsService.createPost(user.id, body.integrationId, createPostDto, mediaFiles);    

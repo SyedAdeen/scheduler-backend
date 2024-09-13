@@ -14,7 +14,6 @@ import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { PostHistory } from '@entities/post-history.entity';
 import { PostStatus } from '../dtos/create-post.dto';
-import { error } from 'console';
 
 @Injectable()
 export class PostsService {
@@ -601,7 +600,7 @@ export class PostsService {
         );  
         this.logger.log('Post published successfully:', response.data);
         await this.createPostHistory(post.id, 'Published', `Post of media type ${createPostDto.mediaType} Published Successfully`, true);
-        return {message:"Post Published Successfully"};
+        return {status:"Published"};
       }
     } catch (error) {
       this.logger.error('Error publishing post to LinkedIn:', {
