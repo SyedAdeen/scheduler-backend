@@ -158,7 +158,7 @@ export class PostsController {
         // No files for polls
         break;
       default:
-        throw new BadRequestException('Invalid media type');
+        break;
     }
     // Call the service method with the necessary data
     return this.postsService.createPost(user.id, body.integrationId, createPostDto, mediaFiles);    

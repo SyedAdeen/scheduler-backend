@@ -17,6 +17,12 @@ export enum RecurringType {
   MONTHLY = 'Monthly',
 }
 
+export enum PostStatus {
+  PUBLISHED = 'Published',
+  DUPLICATE = 'Duplicate',
+  FAILED = 'Failed',
+}
+
 // Define day of the week enum
 export enum DayOfWeek {
   SUNDAY = 'Sunday',

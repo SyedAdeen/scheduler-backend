@@ -6,6 +6,7 @@ import { Post } from '../../common/database/entities/post.entity';
 import { PostMedia } from '../../common/database/entities/post-media.entity';
 import { UserIntegration } from '../../common/database/entities/user-integration.entity';
 import { Integration } from '@entities/integration.entity';
+import { PostStatus } from '../dtos/create-post.dto'; // Import your enum
 import { CreatePostDto } from '../dtos/create-post.dto';
 import { v2 as Cloudinary } from 'cloudinary';
 import axios from 'axios';
@@ -129,7 +130,7 @@ export class PostsService {
     } else {
       this.logger.log("Post Immediately");
       // Enqueue immediate post
-      const job = await this.postSchedulerQueue.add('post-immediate', {
+      const job = await this.postSchedulerQueue.add('schedule-post', {
         postId: post.id,
         integrationId,
         createPostDto,
@@ -137,9 +138,9 @@ export class PostsService {
 
       const result = await job.finished();  // Waits for the job to finish
 
-      if (result && result.message === 'Duplicate post detected. Post was not published again.') {
+      if (result && result.status === PostStatus.DUPLICATE) {
         return { message: 'Duplicate post detected. Post was not published again.' };
-      } else if (result) {
+      } else if (result.status === PostStatus.PUBLISHED) {
         return { message: "Post Published Successfully" };
       } else {
         throw new InternalServerErrorException('Failed to publish the post.');
@@ -423,11 +424,11 @@ export class PostsService {
       );
 
       this.logger.log('Post published successfully:', postResponse.data);
-      return {message:"Post Published Successfully"};
+      return {status:"Published"};
     } catch (error) {
       if (error.response && error.response.status === 422 && error.response.data.errorDetails?.inputErrors?.[0]?.code === 'DUPLICATE_POST') {
         this.logger.warn('Duplicate post detected:', error.response.data.errorDetails.inputErrors[0].description);
-        return { message: 'Duplicate post detected. Post was not published again.' };
+        return { status: 'Duplicate' };
       }
       this.logger.error('Error publishing post to LinkedIn:', {
         message: error.message,
@@ -554,7 +555,7 @@ export class PostsService {
         );
   
         this.logger.log('Post published successfully:', response.data);
-        return {message:"Post Published Successfully"};
+        return {status:"Published"};
       }
     } catch (error) {
       this.logger.error('Error publishing post to LinkedIn:', {
