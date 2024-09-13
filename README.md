@@ -13,6 +13,7 @@
 - **Exchange Tokens for Access Token:** `/integrations/exchange-code`
 - **Get Post Types of Integration** `/integrations/:integrationId/post-types`
 - **Post Method to create posts** `/posts`
+- **Get Method to get user posts** `/posts`
 - **Swagger:** `/docs`
 
 ### Steps to Start the Project:
@@ -47,4 +48,3 @@
      ```
 
 6. **Using path `/docs` can access the swagger from the browser**
-
