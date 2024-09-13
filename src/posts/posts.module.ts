@@ -7,13 +7,14 @@ import { IntegrationPostsTypes } from '../common/database/entities/integration-p
 import { Integration } from '../common/database/entities/integration.entity';
 import { PostMedia } from '@entities/post-media.entity';
 import { Post } from '@entities/post.entity';
+import { PostHistory } from '@entities/post-history.entity';
 import { UserIntegration } from '@entities/user-integration.entity';
 import { PostQueueProcessor } from './processors/post-que.processor'; // Ensure the correct filename
 import { BullModule } from '@nestjs/bull';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([PostType, IntegrationPostsTypes, Integration, Post, PostMedia, UserIntegration]),
+    TypeOrmModule.forFeature([PostType, IntegrationPostsTypes, Integration, Post, PostMedia, UserIntegration, PostHistory]),
     BullModule.registerQueue({
       name: 'post-scheduler',
     }),

@@ -8,7 +8,8 @@ export enum MediaType {
   VIDEO = 'Video',
   DOCUMENT = 'Document',
   POLL = 'Poll',
-  MediaCarousel = 'Media Carousel'
+  MediaCarousel = 'Media Carousel',
+  TEXT = 'Text'
 }
 
 export enum RecurringType {

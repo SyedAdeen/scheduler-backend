@@ -3,6 +3,7 @@ import { Base } from './base.entity';
 import { User } from './user.entity';
 import { Integration } from './integration.entity';
 import { PostMedia } from './post-media.entity';
+import { PostHistory } from './post-history.entity';
 
 @Entity({ name: 'posts' })
 export class Post extends Base {
@@ -26,8 +27,14 @@ export class Post extends Base {
   @Column({ type: 'varchar', nullable: true })
   scheduled: string | null;
 
+  @Column({ type: 'varchar', nullable: true })
+  cronFormat: string | null;
+
   @OneToMany(() => PostMedia, postMedia => postMedia.post)
   postMedia: PostMedia[];
+
+  @OneToMany(() => PostHistory, postHistory => postHistory.post)
+  postHistory: PostHistory[]; // New relation with PostHistory
 
   @Column({ type: 'jsonb', nullable: true })
   metadata: Record<string, any>;  

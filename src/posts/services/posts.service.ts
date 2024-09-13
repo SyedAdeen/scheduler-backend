@@ -6,13 +6,14 @@ import { Post } from '../../common/database/entities/post.entity';
 import { PostMedia } from '../../common/database/entities/post-media.entity';
 import { UserIntegration } from '../../common/database/entities/user-integration.entity';
 import { Integration } from '@entities/integration.entity';
-import { PostStatus } from '../dtos/create-post.dto'; // Import your enum
 import { CreatePostDto } from '../dtos/create-post.dto';
 import { v2 as Cloudinary } from 'cloudinary';
 import axios from 'axios';
 import { classToPlain } from 'class-transformer';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
+import { PostHistory } from '@entities/post-history.entity';
+import { PostStatus } from '../dtos/create-post.dto';
 
 @Injectable()
 export class PostsService {
@@ -25,6 +26,8 @@ export class PostsService {
     private readonly postRepository: Repository<Post>,
     @InjectRepository(Integration)
     private readonly integrationRepository: Repository<Integration>,
+    @InjectRepository(PostHistory)
+    private readonly postHistoryRepository: Repository<PostHistory>,
     @InjectRepository(PostMedia)
     private readonly postMediaRepository: Repository<PostMedia>,
     @InjectRepository(UserIntegration)
@@ -59,7 +62,8 @@ export class PostsService {
     integrationId: number,
     createPostDto: CreatePostDto,
     files: Express.Multer.File[],
-  ): Promise<{message:string}> {
+  ): Promise<{message:string}>
+  {
     try {
       this.logger.log('Create post DTO:', createPostDto);
     
@@ -74,7 +78,7 @@ export class PostsService {
     if(mediaType==='Poll')
     {
       const plainDto = classToPlain(createPostDto);
-  
+
       pollObject = plainDto.poll || {}  
 
       if (typeof pollObject === 'string') {
@@ -135,28 +139,33 @@ export class PostsService {
         integrationId,
         createPostDto,
       });
-
       const result = await job.finished();  // Waits for the job to finish
-
       if (result && result.status === PostStatus.DUPLICATE) {
-        return { message: 'Duplicate post detected. Post was not published again.' };
-      } else if (result.status === PostStatus.PUBLISHED) {
+        throw new BadRequestException("Duplicate post detected. Post was not published again.")
+      } else if (result.status == PostStatus.PUBLISHED) {
         return { message: "Post Published Successfully" };
       } else {
         throw new InternalServerErrorException('Failed to publish the post.');
       } 
-    }
-      
+    }      
     } catch (error) {
-
-      this.logger.error('Error creating post:', { message: error.message });
-      if (error instanceof BadRequestException || error instanceof InternalServerErrorException) {
-        throw error; // Re-throw known exceptions
+        this.logger.error('Error creating post:', { message: error.message });
+        if (error instanceof BadRequestException || error instanceof InternalServerErrorException) {
+          throw error; // Re-throw known exceptions
+        }
+        throw new InternalServerErrorException('An unexpected error occurred while creating the post.');
       }
-      throw new InternalServerErrorException('An unexpected error occurred while creating the post.');
-      
-    }
     
+  }
+
+  private async createPostHistory(postId: number, status: string, details: string, success:boolean) {
+    const postHistory = this.postHistoryRepository.create({
+      post: { id: postId },
+      status,
+      details,
+      success,
+    });
+    await this.postHistoryRepository.save(postHistory);
   }
 
   private async schedulePost(
@@ -170,6 +179,7 @@ export class PostsService {
       // For recurring posts, use cron
       const cronPattern = this.generateCronPatternFromDate(scheduledDate, createPostDto); // This function generates a cron pattern
       this.logger.log("recurring Cron Pattern = ", cronPattern);
+      await this.postRepository.update(postId, { cronFormat: cronPattern });
       await this.postSchedulerQueue.add('schedule-post', {
         postId,
         integrationId,
@@ -180,6 +190,22 @@ export class PostsService {
         removeOnFail: true,
       });
       this.logger.log(`Recurring post scheduled with cron pattern: ${cronPattern}`);
+      if (createPostDto.recurring && createPostDto.recurring_type) {
+        let details = `Recurring Post scheduled with type ${createPostDto.recurring_type}`;
+        
+        if (createPostDto.scheduled) {
+          details += ` and scheduled at ${createPostDto.scheduled}`;
+        }
+        
+        if (createPostDto.dayofweek) {
+          details += ` on ${createPostDto.dayofweek}`;
+        }
+        
+        if (createPostDto.dateofmonth) {
+          details += ` on the ${createPostDto.dateofmonth}${this.getOrdinalSuffix(createPostDto.dateofmonth)}`;
+        }
+      
+      }
       return {message:"Recurring Post has been scheduled"};
     } else if (scheduledDate) {
       // For one-time scheduled posts, you can use a specific cron pattern
@@ -237,7 +263,16 @@ export class PostsService {
     }
   }
 
-
+  private getOrdinalSuffix(day: number): string {
+    if (day >= 11 && day <= 13) return 'th';
+    switch (day % 10) {
+      case 1: return 'st';
+      case 2: return 'nd';
+      case 3: return 'rd';
+      default: return 'th';
+    }
+  }
+  
 
   public async postToPlatform(postId: number, integrationId: number, createPostDto:CreatePostDto) {
     const platform = await this.getPlatformByIntegrationId(integrationId);
@@ -289,7 +324,7 @@ export class PostsService {
     }    
 
     if (mediaAssets.length === 0 && mediaType!=='Poll') {
-      return await this.publishPostToLinkedInContentOnly(post.content || 'Default content text', accessToken);
+      return await this.publishPostToLinkedInContentOnly(createPostDto,postId, post.content || 'Default content text', accessToken);
     } else {
       return await this.publishPostToLinkedInContentWithMedia(post, mediaAssets, accessToken, createPostDto );
     }
@@ -393,7 +428,7 @@ export class PostsService {
     }
   }
   
-  private async publishPostToLinkedInContentOnly(content: string, accessToken: string) {
+  private async publishPostToLinkedInContentOnly(createPostDto:CreatePostDto, postId:number,content: string, accessToken: string) {
     try {
       const personUrn = await this.getPersonUrn(accessToken);
 
@@ -422,10 +457,17 @@ export class PostsService {
           },
         }
       );
-
       this.logger.log('Post published successfully:', postResponse.data);
-      return {status:"Published"};
-    } catch (error) {
+      if(createPostDto.scheduled)
+      {
+        await this.createPostHistory(postId, 'Published', `Post Published Successfully, scheduled on ${createPostDto.scheduled}}`, true);
+      }
+      else{
+        await this.createPostHistory(postId, 'Published', 'One Time Post Published Successfully', true);
+      }
+
+      return { status: 'Published' };
+    } catch (error) { 
       if (error.response && error.response.status === 422 && error.response.data.errorDetails?.inputErrors?.[0]?.code === 'DUPLICATE_POST') {
         this.logger.warn('Duplicate post detected:', error.response.data.errorDetails.inputErrors[0].description);
         return { status: 'Duplicate' };
@@ -435,7 +477,7 @@ export class PostsService {
         response: error.response?.data,
         status: error.response?.status,
       });
-      throw new BadRequestException('Failed to publish post to LinkedIn.');
+      throw new BadRequestException('Failed to publish post to LinkedIn.');      
     }
   }
 
@@ -516,6 +558,9 @@ export class PostsService {
         );
   
         this.logger.log('Poll published successfully:', response.data);
+        await this.createPostHistory(post.id, 'Published', 'Poll Published Successfully', true);
+        return{status:"Published"};
+        
       } else {
         // Handle other media types
         const postPayload = {
@@ -552,9 +597,9 @@ export class PostsService {
               'Content-Type': 'application/json',
             },
           }
-        );
-  
+        );  
         this.logger.log('Post published successfully:', response.data);
+        await this.createPostHistory(post.id, 'Published', `Post of media type ${createPostDto.mediaType} Published Successfully`, true);
         return {status:"Published"};
       }
     } catch (error) {
@@ -565,6 +610,77 @@ export class PostsService {
       });
       throw new BadRequestException('Failed to publish post to LinkedIn.');
     }
-  }   
+  }
+  
+  async getPostsForUser(userId: number) {
+    const posts = await this.postRepository
+      .createQueryBuilder('post')
+      .leftJoinAndSelect('post.integration', 'integration')
+      .leftJoinAndSelect('post.postMedia', 'postMedia')
+      .leftJoinAndSelect('post.postHistory', 'postHistory')
+      .where('post.user_id = :userId', { userId })
+      .select([
+        'post.id',
+        'post.content',
+        'post.recurring',
+        'post.scheduled',
+        'post.cronFormat', 
+        'integration.platform',
+        'postMedia.mediaUrl',
+      ])
+      .addSelect('COUNT(postHistory.id)', 'historyCount')
+      .groupBy('post.id')
+      .addGroupBy('integration.platform')
+      .addGroupBy('postMedia.mediaUrl')
+      .orderBy('post.id', 'DESC')  // Sort in descending order by post.id
+      .getRawMany();
+
+    return posts.map(post => {
+      // Determine recurring type and additional details
+      const recurringDetails = this.getRecurringDetails(post.post_cronFormat);
+
+      return {
+        ...post,
+        recurringType: recurringDetails.type,
+        date_day: recurringDetails.date_day,
+      };
+    });
+  }
+
+  private getRecurringDetails(cronFormat: string) {
+    if (!cronFormat) return { type: null, dayOfWeek: null, dateOfMonth: null };
+
+    const [minute, hour, dayOfMonth, month, dayOfWeek] = cronFormat.split(' ');
+
+    let type = 'Daily'; // Default to daily if no specific recurring type is found
+    let date_day = null;
+    // Check if the cron format specifies daily recurrence
+    if (dayOfMonth === '*' && month === '*' && (dayOfWeek === '*' || dayOfWeek === '?')) {
+        // This indicates a daily schedule
+        type = 'Daily';
+    } else if (dayOfMonth !== '*' && dayOfMonth !== '?') {
+        // Specific day of the month provided, so it's a monthly schedule
+        type = 'Monthly';
+        date_day = dayOfMonth.split(',').map(Number).toString();
+    } else if (dayOfWeek !== '*' && dayOfWeek !== '?') {
+        // Specific day of the week provided, so it's a weekly schedule
+        type = 'Weekly';
+        const dayNumbers = dayOfWeek.split(',').map(Number);
+
+        // Handle single day case
+        if (dayNumbers.length === 1) {
+            if (dayNumbers[0] === 0) date_day = "Sunday";
+            else if (dayNumbers[0] === 1) date_day = "Monday";
+            else if (dayNumbers[0] === 2) date_day = "Tuesday";
+            else if (dayNumbers[0] === 3) date_day = "Wednesday";
+            else if (dayNumbers[0] === 4) date_day = "Thursday";
+            else if (dayNumbers[0] === 5) date_day = "Friday";
+            else if (dayNumbers[0] === 6) date_day = "Saturday";
+            else date_day = 'Unknown'; // Handle unexpected values
+        }
+    }
+
+    return { type, date_day };
+  }
   
 }
