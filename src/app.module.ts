@@ -2,6 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
+import { BullModule } from '@nestjs/bull'; // Import BullModule for job queues
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import dataBaseConfig from './common/database/ormconfig';
@@ -20,6 +21,20 @@ import { v2 as cloudinary } from 'cloudinary';
         ConfigModule.forRoot({ isGlobal: true }), // Ensure ConfigModule is global
         TypeOrmModule.forRoot(dataBaseConfig.options),
         ScheduleModule.forRoot(),
+        BullModule.forRootAsync({ // Configure Bull with Redis using ConfigService
+            imports: [ConfigModule],
+            inject: [ConfigService],
+            useFactory: async (configService: ConfigService) => ({
+                redis: {
+                    username: configService.get<string>('REDIS_USERNAME'),
+                    password: configService.get<string>('REDIS_PASSWORD'),
+                    url: configService.get<string>('REDIS_URL'),                  
+                },
+            }),
+        }),
+        BullModule.registerQueue({ // Register Bull queue for post scheduling
+            name: 'post-scheduler',
+        }),
         AuthModule,
         IntegrationModule,
         PostsModule,
@@ -78,8 +93,8 @@ import { v2 as cloudinary } from 'cloudinary';
     ],
     exports: [
         'REDIS',
-        'GOOGLE_CLIENT', 
-        'CLOUDINARY', 
+        'GOOGLE_CLIENT',
+        'CLOUDINARY',
     ],
 })
 export class AppModule {}

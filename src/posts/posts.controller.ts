@@ -16,7 +16,7 @@ import { FileFieldsInterceptor } from '@nestjs/platform-express'; // Correct imp
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PostsService } from './services/posts.service';
 import { GetPostTypesDto } from './dtos/get-post-types.dto';
-import { CreatePostDto, MediaType } from './dtos/create-post.dto';
+import { CreatePostDto, DayOfWeek, MediaType, RecurringType } from './dtos/create-post.dto';
 import { plainToClass } from 'class-transformer';
 
 
@@ -69,6 +69,23 @@ export class PostsController {
           enum: Object.values(MediaType),
           description: 'Type of media being uploaded. Use this field to determine which files are relevant.' 
         },
+        recurring_type: { 
+          type: 'string', 
+          enum: Object.values(RecurringType),
+          description: 'Recurring type of the post, e.g., Daily, Weekly, Monthly', 
+          nullable: true 
+        },
+        dayofweek: { 
+          type: 'string', 
+          enum: Object.values(DayOfWeek),
+          description: 'Day of the week for weekly recurring posts', 
+          nullable: true 
+        },
+        dateofmonth: { 
+          type: 'number', 
+          description: 'Date of the month for monthly recurring posts', 
+          nullable: true 
+        },
         poll: {
           type: 'object',
           properties: {
@@ -87,7 +104,7 @@ export class PostsController {
         'Media Carousel': {
           type: 'array',
           items: { type: 'string', format: 'binary' },
-          description: 'Array of image files (up to 10). Only relevant if mediaType is "Media Carousel".'
+          description: 'Array of image files (up to 5). Only relevant if mediaType is "Media Carousel".'
         },
         'Image': {
           type: 'string',
@@ -104,7 +121,7 @@ export class PostsController {
           format: 'binary',
           description: 'Document (only one allowed).'
         },
-      },
+      }, 
     },
   })
   async createPost(
@@ -117,21 +134,19 @@ export class PostsController {
     },
     @Req() request: any
   ): Promise<{ message: string }> {
-
     const user = request.user;
-    
     // Convert body to DTO
+    body.recurring = body.recurring === 'true';
     const createPostDto = plainToClass(CreatePostDto, body, { enableImplicitConversion: true });
-    const integrationId = body.integrationId;
-    
-    // Handle file assignment based on media type
+    createPostDto.recurring=body.recurring; 
+    // Handle file upload and media type logic
     let mediaFiles: Express.Multer.File[] = [];
     switch (createPostDto.mediaType) {
       case MediaType.MediaCarousel:
         mediaFiles = files['Media Carousel'] || [];
         break;
       case MediaType.IMAGE:
-        mediaFiles = Array.isArray(files['Image']) ? files['Image'] : files['Image'] ? [files['Image']] : [];
+        mediaFiles = Array.isArray(files?.['Image']) ? files['Image'] : files?.['Image'] ? [files['Image']] : [];
         break;
       case MediaType.VIDEO:
         mediaFiles = Array.isArray(files['Video']) ? files['Video'] : files['Video'] ? [files['Video']] : [];
@@ -143,10 +158,10 @@ export class PostsController {
         // No files for polls
         break;
       default:
-        throw new BadRequestException('Invalid media type');
+        break;
     }
-
     // Call the service method with the necessary data
-    return this.postsService.createPost(user.id, integrationId, createPostDto, mediaFiles);
+    return this.postsService.createPost(user.id, body.integrationId, createPostDto, mediaFiles);    
   }
+
 }

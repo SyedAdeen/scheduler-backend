@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException, Inject } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, Inject, InternalServerErrorException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { IntegrationPostsTypes } from '../../common/database/entities/integration-posts-types.entity';
@@ -6,10 +6,13 @@ import { Post } from '../../common/database/entities/post.entity';
 import { PostMedia } from '../../common/database/entities/post-media.entity';
 import { UserIntegration } from '../../common/database/entities/user-integration.entity';
 import { Integration } from '@entities/integration.entity';
+import { PostStatus } from '../dtos/create-post.dto'; // Import your enum
 import { CreatePostDto } from '../dtos/create-post.dto';
 import { v2 as Cloudinary } from 'cloudinary';
 import axios from 'axios';
 import { classToPlain } from 'class-transformer';
+import { InjectQueue } from '@nestjs/bull';
+import { Queue } from 'bull';
 
 @Injectable()
 export class PostsService {
@@ -27,6 +30,7 @@ export class PostsService {
     @InjectRepository(UserIntegration)
     private readonly userIntegrationRepository: Repository<UserIntegration>,
     @Inject('CLOUDINARY') private readonly cloudinary: typeof Cloudinary,
+    @InjectQueue('post-scheduler') private readonly postSchedulerQueue: Queue,
   ) {}
 
   async getPostTypesForIntegration(integrationId: number): Promise<{ id: number, name: string }[]> {
@@ -56,7 +60,8 @@ export class PostsService {
     createPostDto: CreatePostDto,
     files: Express.Multer.File[],
   ): Promise<{message:string}> {
-    this.logger.log('Create post DTO:', createPostDto);
+    try {
+      this.logger.log('Create post DTO:', createPostDto);
     
     const mediaType = createPostDto.mediaType;
     
@@ -117,22 +122,125 @@ export class PostsService {
         this.logger.log('Media saved successfully');
       }
     }
+    if (createPostDto.recurring || createPostDto.scheduled) {
+      // Handle scheduling
+      if (createPostDto.scheduled) {
+        return this.schedulePost(post.id, createPostDto.scheduled, integrationId, createPostDto);
+      }
+    } else {
+      this.logger.log("Post Immediately");
+      // Enqueue immediate post
+      const job = await this.postSchedulerQueue.add('schedule-post', {
+        postId: post.id,
+        integrationId,
+        createPostDto,
+      });
 
-    if (!createPostDto.recurring && !createPostDto.scheduled) {
-      this.logger.log('Post immediately');
-      return await this.postToPlatform(post.id, integrationId, createPostDto);
-    } else if (createPostDto.scheduled) {
-      this.schedulePost(post.id, createPostDto.scheduled);
+      const result = await job.finished();  // Waits for the job to finish
+
+      if (result && result.status === PostStatus.DUPLICATE) {
+        return { message: 'Duplicate post detected. Post was not published again.' };
+      } else if (result.status === PostStatus.PUBLISHED) {
+        return { message: "Post Published Successfully" };
+      } else {
+        throw new InternalServerErrorException('Failed to publish the post.');
+      } 
+    }
+      
+    } catch (error) {
+
+      this.logger.error('Error creating post:', { message: error.message });
+      if (error instanceof BadRequestException || error instanceof InternalServerErrorException) {
+        throw error; // Re-throw known exceptions
+      }
+      throw new InternalServerErrorException('An unexpected error occurred while creating the post.');
+      
+    }
+    
+  }
+
+  private async schedulePost(
+    postId: number, 
+    scheduledDate: string, 
+    integrationId: number, 
+    createPostDto: CreatePostDto
+  ): Promise<{message:string}> {
+  
+    if (createPostDto.recurring) {
+      // For recurring posts, use cron
+      const cronPattern = this.generateCronPatternFromDate(scheduledDate, createPostDto); // This function generates a cron pattern
+      this.logger.log("recurring Cron Pattern = ", cronPattern);
+      await this.postSchedulerQueue.add('schedule-post', {
+        postId,
+        integrationId,
+        createPostDto,
+      }, {
+        repeat: { cron: cronPattern }, // Use cron for recurring posts
+        removeOnComplete: true,
+        removeOnFail: true,
+      });
+      this.logger.log(`Recurring post scheduled with cron pattern: ${cronPattern}`);
+      return {message:"Recurring Post has been scheduled"};
+    } else if (scheduledDate) {
+      // For one-time scheduled posts, you can use a specific cron pattern
+      await this.postSchedulerQueue.add('schedule-post', {
+        postId,
+        integrationId,
+        createPostDto,
+      }, {
+        delay: new Date(scheduledDate).getTime() - Date.now(),
+        removeOnComplete: true,
+        removeOnFail: true,
+      });
+      this.logger.log(`Post scheduled for: ${scheduledDate}`);
+      return {message: `Post scheduled for: ${scheduledDate}`};
+    } 
+  }
+  
+  // Helper function to generate cron patterns based on date
+  private generateCronPatternFromDate(scheduledTime: string, createPostDto: CreatePostDto): string {
+    // Parse the scheduled time (e.g., '19:18')
+    const [hours, minutes] = scheduledTime.split(':').map(Number);
+
+    const recurringType = createPostDto.recurring_type;
+    const currentDayOfWeek = createPostDto.dayofweek; // Assuming this is provided as a string like 'Monday'
+    const currentDateOfMonth = createPostDto.dateofmonth; // Assuming this is a number from 1 to 31
+
+    // Map day names to cron values
+    const dayOfWeekMap: { [key: string]: number } = {
+        'Sunday': 0,
+        'Monday': 1,
+        'Tuesday': 2,
+        'Wednesday': 3,
+        'Thursday': 4,
+        'Friday': 5,
+        'Saturday': 6
+    };
+
+    switch (recurringType) {
+        case 'Daily':
+            // Every day at the specified time
+            return `${minutes} ${hours} * * *`;
+
+        case 'Weekly':
+            // Convert day of week name to cron value
+            const cronDayOfWeek = dayOfWeekMap[currentDayOfWeek] !== undefined ? dayOfWeekMap[currentDayOfWeek] : '*';
+            return `${minutes} ${hours} * * ${cronDayOfWeek}`;
+
+        case 'Monthly':
+            // Ensure dateOfMonth is within valid range (1-31)
+            const validDateOfMonth = (currentDateOfMonth >= 1 && currentDateOfMonth <= 31) ? currentDateOfMonth : '*';
+            return `${minutes} ${hours} ${validDateOfMonth} * *`;
+
+        default:
+            throw new BadRequestException('Invalid recurring type');
     }
   }
 
-  private schedulePost(postId: number, scheduledDate: string): void {
-    // Implement scheduling logic
-  }
 
-  private async postToPlatform(postId: number, integrationId: number, createPostDto:CreatePostDto) {
+
+  public async postToPlatform(postId: number, integrationId: number, createPostDto:CreatePostDto) {
     const platform = await this.getPlatformByIntegrationId(integrationId);
-    const mediaType = createPostDto.mediaType;
 
     switch (platform) {
       case 'LinkedIn':
@@ -316,8 +424,12 @@ export class PostsService {
       );
 
       this.logger.log('Post published successfully:', postResponse.data);
-      return {message:"Post Published Successfully"};
+      return {status:"Published"};
     } catch (error) {
+      if (error.response && error.response.status === 422 && error.response.data.errorDetails?.inputErrors?.[0]?.code === 'DUPLICATE_POST') {
+        this.logger.warn('Duplicate post detected:', error.response.data.errorDetails.inputErrors[0].description);
+        return { status: 'Duplicate' };
+      }
       this.logger.error('Error publishing post to LinkedIn:', {
         message: error.message,
         response: error.response?.data,
@@ -443,7 +555,7 @@ export class PostsService {
         );
   
         this.logger.log('Post published successfully:', response.data);
-        return {message:"Post Published Successfully"};
+        return {status:"Published"};
       }
     } catch (error) {
       this.logger.error('Error publishing post to LinkedIn:', {
