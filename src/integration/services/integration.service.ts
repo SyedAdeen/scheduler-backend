@@ -102,10 +102,9 @@ export class IntegrationService {
     const clientSecret = this.encryptionService.decrypt(integration.metadata.clientSecret);
     Logger.log("clientSecret:", clientSecret);
     const redirectUri = integration.metadata.redirectUri;
-    const host = this.configService.get<string>('HOST', '127.0.0.1'); 
-    const port = this.configService.get<string>('PORT', '3001'); 
-    const redirect_uri = `${host}:${port}${redirectUri}`;
-    // const redirect_uri = `${host}${redirectUri}`;
+    const host = this.configService.get<string>('HOST', '127.0.0.1:3001'); 
+    // const redirect_uri = `${host}:${port}${redirectUri}`;
+    const redirect_uri = `${host}${redirectUri}`;
     Logger.log("redirectUri:", redirect_uri);
  
     // Make the request to exchange code for tokens
