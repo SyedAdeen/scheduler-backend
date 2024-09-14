@@ -109,7 +109,7 @@ export class IntegrationService {
     Logger.log("redirectUri:", redirect_uri);
  
     // Make the request to exchange code for tokens
-    // try {
+    try {
     console.log("a");
       const response = await this.httpservice
         .post(tokenUri, new URLSearchParams({
@@ -154,10 +154,10 @@ export class IntegrationService {
 
       return this.userIntegrationRepository.save(userIntegration);
 
-    // } catch (error) {
-    //   Logger.error('Error details:', error.response?.data || error.message);
-    //   throw error;
-    // }
+    } catch (error) {
+      Logger.error('Error details:', error.response?.data || error.message);
+      throw error;
+    }
   }
       
 }
