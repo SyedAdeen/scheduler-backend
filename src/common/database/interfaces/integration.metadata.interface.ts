@@ -6,5 +6,6 @@ export interface IntegrationMetadata {
   oauthUri: string;
   tokenUri: string;
   scope: string;
+  configId?: string;
 }
   

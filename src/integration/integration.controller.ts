@@ -5,12 +5,16 @@ import { Integration } from "@entities/integration.entity";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { IntegrationDto } from "./dtos/get-integration.dto";
 import { instanceToPlain } from "class-transformer";
+import { EncryptionService } from "src/common/utilities/encryption.utlis";
 
 @Controller("integrations")
 @ApiTags("Integration")
 
 export class IntegrationController {
-  constructor(private readonly integrationService: IntegrationService) {}
+  constructor(
+    private readonly integrationService: IntegrationService,
+    private readonly encryptionService: EncryptionService,
+  ) {}
 
   @Get("")
   @ApiBearerAuth('access-token') 
@@ -87,5 +91,11 @@ export class IntegrationController {
     // Exchange the code for tokens
     return instanceToPlain(this.integrationService.exchangeCodeForTokens(code, userId, integrationId));
   }
+
+  // @Get('test')
+  // async test() {
+  //   console.log("clientID", this.encryptionService.encrypt("1916845428793450"));
+  //   console.log("secret", this.encryptionService.encrypt("eb545dd4bf16fa07ff3a6fc70807a9d6"));
+  // }
 
 }

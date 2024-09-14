@@ -65,7 +65,10 @@ export class IntegrationService {
     const redirect_uri = `${host}${redirectUri}`;
 
     // Generate the authorization URL
-    const authUrl = `${oauthUri}?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirect_uri)}&response_type=code&state=${encodeURIComponent(state)}&scope=${encodeURIComponent(scope)}`;
+    let authUrl = `${oauthUri}?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirect_uri)}&response_type=code&state=${encodeURIComponent(state)}&scope=${encodeURIComponent(scope)}`;
+    if (integration.platform.toLowerCase() === "facebook") {
+      authUrl = authUrl + `&config_id=${integration.metadata.configId ?? ""}`;
+    }
 
     return authUrl;
   }
