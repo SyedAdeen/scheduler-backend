@@ -58,13 +58,11 @@ export class IntegrationService {
 
     // Create a state object containing the userId and integrationId
     const state = JSON.stringify({ userId, integrationId });
-    const host = this.configService.get<string>('HOST', '127.0.0.1'); 
-    const port = this.configService.get<string>('PORT', '3001'); 
+    const host = this.configService.get<string>('HOST', '127.0.0.1:3001'); 
     const scope = integration.metadata.scope;
 
     // Construct the dynamic redirect_uri
-    const redirect_uri = `${host}:${port}${redirectUri}`;
-    // const redirect_uri = `${host}${redirectUri}`;
+    const redirect_uri = `${host}${redirectUri}`;
 
     // Generate the authorization URL
     const authUrl = `${oauthUri}?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirect_uri)}&response_type=code&state=${encodeURIComponent(state)}&scope=${encodeURIComponent(scope)}`;
