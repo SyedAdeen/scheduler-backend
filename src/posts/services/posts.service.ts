@@ -457,7 +457,6 @@ export class PostsService {
           }
         }
       }
-
     }    
 
     if (mediaAssets.length === 0 && mediaType!=='Poll') {
@@ -810,7 +809,6 @@ export class PostsService {
             else date_day = 'Unknown'; // Handle unexpected values
         }
     }
-
     return { type, date_day };
   }
   
