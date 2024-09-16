@@ -214,7 +214,7 @@ export class PostsService {
         postId,
         integrationId,
         createPostDto,
-      }, {
+      },{
         delay: new Date(scheduledDate).getTime() - Date.now(),
         removeOnComplete: true,
         removeOnFail: true,
@@ -298,11 +298,9 @@ export class PostsService {
     
     // Step 1: Get the User Access Token
     const userAccessToken = await this.getAccessToken(post.user.id, integrationId);
-    console.log("User Access token = ", userAccessToken);
     
     // Step 2: Use the User Access Token to retrieve the Page Access Token
     const {pageAccessToken,pageId} = await this.getPageAccessToken(userAccessToken);
-    // const pageAccessToken = "EAAbPXFrfYGoBO3pux8NMtFjZAl5HZBuJeBLaQYN3zxdsS0hiTrsGwZCbxqCZBZAKbjTQphMvZA0NC4mH4GGCcqT4j9n33QpFxomSqbPCZCsQoD76JIxvrbVJKTmyfjPPh89kLVZAbJIV3rxcmFlYCikLpaCBcyoeri3eZA58pZCsOP0p4zZCFqBhKDKl6jJwV0ntpIWxgSQFnSZAEp0LQJJkdYGuan1tUXLdRQsZD"
     
     // Step 3: Use the Page Access Token to post the content
     switch (createPostDto.mediaType) {  
@@ -310,8 +308,7 @@ export class PostsService {
         return await this.postContentToFacebook(postId,pageId, post.content, pageAccessToken, createPostDto.scheduled);
       case MediaType.IMAGE:
         const imageUrl = post.postMedia[0]?.mediaUrl; // Assuming a single image
-          console.log(imageUrl);
-          return await this.postImageToFacebook(postId,pageId, imageUrl, post.content, pageAccessToken);
+        return await this.postImageToFacebook(postId,pageId, imageUrl, post.content, pageAccessToken);
       case MediaType.VIDEO:
         return await this.postVideoToFacebook(postId,pageId, post.postMedia[0]?.mediaUrl, post.content, pageAccessToken);
     }
@@ -348,7 +345,7 @@ export class PostsService {
       }
 
     } catch (error) {
-      console.log("Error", error);
+      this.logger.log("Error", error);
       throw new Error('Failed to retrieve Page Access Token.');
     }
   }
@@ -358,15 +355,13 @@ export class PostsService {
   
     // Convert scheduledTime to UNIX timestamp if it's provided
     const scheduledPublishTime = scheduledTime ? Math.floor(new Date(scheduledTime).getTime() / 1000) : undefined;
-  
+
     const payload = {
       message: message,
       published: !scheduledTime, // If scheduledTime is provided, set published to false
       ...(scheduledPublishTime && { scheduled_publish_time: scheduledPublishTime }),
     };
-  
-    console.log("Payload of Content Facebook = ", payload);
-  
+    
     try {
       const response = await axios.post(url, {
         ...payload,
@@ -524,9 +519,7 @@ export class PostsService {
       } else {
         recipe = 'urn:li:digitalmediaRecipe:feedshare-image';
       }
-
       Logger.log("Recipe:",recipe);
-  
       const registerResponse = await axios.post(
         'https://api.linkedin.com/v2/assets?action=registerUpload',
         {
@@ -547,10 +540,8 @@ export class PostsService {
           },
         }
       );
-
       const uploadUrl = registerResponse.data.value.uploadMechanism['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest'].uploadUrl;
       const asset = registerResponse.data.value.asset;
-  
       const mediaResponse = await axios.get(mediaUrl, { responseType: 'arraybuffer' });
       await axios.put(uploadUrl, mediaResponse.data, {
         headers: {
@@ -558,7 +549,6 @@ export class PostsService {
           'Content-Type': mediaType,
         },
       });
-  
       return asset;
     } catch (error) {
       this.logger.error('Error registering or uploading media to LinkedIn:', {
@@ -573,9 +563,7 @@ export class PostsService {
   private async publishPostToLinkedInContentOnly(createPostDto:CreatePostDto, postId:number,content: string, accessToken: string) {
     try {
       const personUrn = await this.getPersonUrn(accessToken);
-
       Logger.log(personUrn);
-
       const postResponse = await axios.post(
         'https://api.linkedin.com/v2/shares',
         {
@@ -607,7 +595,6 @@ export class PostsService {
       else{
         await this.createPostHistory(postId, 'Published', 'One Time Post Published Successfully', true);
       }
-
       return { status: 'Published' };
     } catch (error) { 
       if (error.response && error.response.status === 422 && error.response.data.errorDetails?.inputErrors?.[0]?.code === 'DUPLICATE_POST') {
@@ -658,7 +645,7 @@ export class PostsService {
         ? 'DOCUMENT'
         : 'IMAGE';
   
-      if (mediaType === 'Poll') {
+        if (mediaType === 'Poll') {
         // Log the type of poll to ensure it is an object
         this.logger.log('Poll Type:', typeof pollObject);
   
