@@ -6,7 +6,7 @@ import { Post } from '../../common/database/entities/post.entity';
 import { PostMedia } from '../../common/database/entities/post-media.entity';
 import { UserIntegration } from '../../common/database/entities/user-integration.entity';
 import { Integration } from '@entities/integration.entity';
-import { CreatePostDto } from '../dtos/create-post.dto';
+import { CreatePostDto, MediaType } from '../dtos/create-post.dto';
 import { v2 as Cloudinary } from 'cloudinary';
 import axios from 'axios';
 import { classToPlain } from 'class-transformer';
@@ -14,6 +14,7 @@ import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { PostHistory } from '@entities/post-history.entity';
 import { PostStatus } from '../dtos/create-post.dto';
+import * as FormData from 'form-data'
 
 @Injectable()
 export class PostsService {
@@ -213,7 +214,7 @@ export class PostsService {
         postId,
         integrationId,
         createPostDto,
-      }, {
+      },{
         delay: new Date(scheduledDate).getTime() - Date.now(),
         removeOnComplete: true,
         removeOnFail: true,
@@ -280,7 +281,10 @@ export class PostsService {
     switch (platform) {
       case 'LinkedIn':
         return await this.postToLinkedIn(postId, integrationId, createPostDto);
-        break;
+      case 'Facebook':
+        return await this.postToFacebook(postId, integrationId, createPostDto);
+      default:
+        throw new BadRequestException(`Unsupported platform: ${platform}`);
     }
   }
 
@@ -289,6 +293,139 @@ export class PostsService {
     return integration.platform;
   }
 
+  private async postToFacebook(postId: number, integrationId: number, createPostDto: CreatePostDto) {
+    const post = await this.postRepository.findOne({ where: { id: postId }, relations: ['postMedia', 'user'] });
+    
+    // Step 1: Get the User Access Token
+    const userAccessToken = await this.getAccessToken(post.user.id, integrationId);
+    
+    // Step 2: Use the User Access Token to retrieve the Page Access Token
+    const {pageAccessToken,pageId} = await this.getPageAccessToken(userAccessToken);
+    
+    // Step 3: Use the Page Access Token to post the content
+    switch (createPostDto.mediaType) {  
+      case MediaType.TEXT:
+        return await this.postContentToFacebook(postId,pageId, post.content, pageAccessToken, createPostDto.scheduled);
+      case MediaType.IMAGE:
+        const imageUrl = post.postMedia[0]?.mediaUrl; // Assuming a single image
+        return await this.postImageToFacebook(postId,pageId, imageUrl, post.content, pageAccessToken);
+      case MediaType.VIDEO:
+        return await this.postVideoToFacebook(postId,pageId, post.postMedia[0]?.mediaUrl, post.content, pageAccessToken);
+    }
+  }
+
+  private async getPageAccessToken(userAccessToken: string): Promise<any> {
+    try {
+      // Graph API URL to get the list of pages associated with the user
+      const url = `https://graph.facebook.com/v20.0/me/accounts?access_token=${userAccessToken}`;
+      
+      // Fetch the pages using axios
+      
+    const response = await axios.get(url, { 
+        headers: { "Accept-Encoding": "gzip,deflate,compress" } 
+      });
+
+      // Check if the response has data and at least one page
+      if (response.data && response.data.data && response.data.data.length > 0) {
+        const page = response.data.data[0]; // Get the first page (or loop to find the desired page)
+              
+        const pageAccessToken = page.access_token;
+        const pageId = page.id;
+
+        if (pageAccessToken) {
+          this.logger.log(`Successfully retrieved Page Access Token: ${pageAccessToken}`);
+          return {pageAccessToken, pageId}; // Return the page access token
+        } else {
+          this.logger.error('No page access token found in the response.');
+          throw new Error('Page access token not found.');
+        }
+      } else {
+        this.logger.error('No pages found for this user.');
+        throw new Error('No pages found.');
+      }
+
+    } catch (error) {
+      this.logger.log("Error", error);
+      throw new Error('Failed to retrieve Page Access Token.');
+    }
+  }
+
+  private async postContentToFacebook(postId:number,pageId: string, message: string, accessToken: string, scheduledTime?: string) {
+    const url = `https://graph.facebook.com/v20.0/${pageId}/feed`;
+  
+    // Convert scheduledTime to UNIX timestamp if it's provided
+    const scheduledPublishTime = scheduledTime ? Math.floor(new Date(scheduledTime).getTime() / 1000) : undefined;
+
+    const payload = {
+      message: message,
+      published: !scheduledTime, // If scheduledTime is provided, set published to false
+      ...(scheduledPublishTime && { scheduled_publish_time: scheduledPublishTime }),
+    };
+    
+    try {
+      const response = await axios.post(url, {
+        ...payload,
+        access_token: accessToken, // Include access token as a query parameter
+      }, {
+        headers: { 
+          'Content-Type': 'application/json' 
+        },
+      });
+  
+      this.logger.log('Post published successfully:', response.data);
+      await this.createPostHistory(postId, 'Published', `Content Published Successfully`, true);
+      return { status: 'Published', id: response.data.id };
+    } catch (error) {
+      this.logger.error('Error publishing content to Facebook:', error.response?.data);
+      throw new BadRequestException('Failed to publish content to Facebook.');
+    }
+  }  
+
+  private async postImageToFacebook(postId:number, pageId: string, imageUrl: string, message: string, accessToken: string) {
+    const url = `https://graph.facebook.com/v20.0/${pageId}/photos`;
+  
+    const payload = {
+      url: imageUrl,
+      caption: message,
+      published: true,
+    };
+  
+    try {
+      const response = await axios.post(url, payload, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      this.logger.log('Image posted successfully:', response.data);
+      await this.createPostHistory(postId, 'Published', `Image Published Successfully`, true);
+      return { status: 'Published', post_id: response.data.post_id };
+    } catch (error) {
+      this.logger.error('Error publishing image to Facebook:', error.response?.data);
+      throw new BadRequestException('Failed to publish image to Facebook.');
+    }
+  }
+
+  private async postVideoToFacebook(postId:number, pageId: string, videoUrl: string, description: string, accessToken: string) {
+    const url = `https://graph-video.facebook.com/v20.0/${pageId}/videos`;
+  
+    const payload = new FormData();
+    payload.append('access_token', accessToken);
+    payload.append('description', description);
+    payload.append('file_url', videoUrl); // Correct parameter for video URL
+
+    try {
+      const response = await axios.post(url, payload, {
+        headers: {
+          ...payload.getHeaders(), // This automatically includes the boundary parameter
+        },
+      });
+      this.logger.log('Video posted successfully:', response.data);
+      await this.createPostHistory(postId, 'Published', `Video Published Successfully`, true);
+      return { status: 'Published', id: response.data.id };
+    } catch (error) {
+      this.logger.error('Error publishing video to Facebook:', error.response?.data);
+      throw new BadRequestException('Failed to publish video to Facebook.');
+    }
+  }  
+  
   private async postToLinkedIn(postId: number, integrationId: number, createPostDto:CreatePostDto) {
     const post = await this.postRepository.findOne({
       where: { id: postId },
@@ -320,7 +457,6 @@ export class PostsService {
           }
         }
       }
-
     }    
 
     if (mediaAssets.length === 0 && mediaType!=='Poll') {
@@ -382,9 +518,7 @@ export class PostsService {
       } else {
         recipe = 'urn:li:digitalmediaRecipe:feedshare-image';
       }
-
       Logger.log("Recipe:",recipe);
-  
       const registerResponse = await axios.post(
         'https://api.linkedin.com/v2/assets?action=registerUpload',
         {
@@ -405,10 +539,8 @@ export class PostsService {
           },
         }
       );
-
       const uploadUrl = registerResponse.data.value.uploadMechanism['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest'].uploadUrl;
       const asset = registerResponse.data.value.asset;
-  
       const mediaResponse = await axios.get(mediaUrl, { responseType: 'arraybuffer' });
       await axios.put(uploadUrl, mediaResponse.data, {
         headers: {
@@ -416,7 +548,6 @@ export class PostsService {
           'Content-Type': mediaType,
         },
       });
-  
       return asset;
     } catch (error) {
       this.logger.error('Error registering or uploading media to LinkedIn:', {
@@ -431,9 +562,7 @@ export class PostsService {
   private async publishPostToLinkedInContentOnly(createPostDto:CreatePostDto, postId:number,content: string, accessToken: string) {
     try {
       const personUrn = await this.getPersonUrn(accessToken);
-
       Logger.log(personUrn);
-
       const postResponse = await axios.post(
         'https://api.linkedin.com/v2/shares',
         {
@@ -465,7 +594,6 @@ export class PostsService {
       else{
         await this.createPostHistory(postId, 'Published', 'One Time Post Published Successfully', true);
       }
-
       return { status: 'Published' };
     } catch (error) { 
       if (error.response && error.response.status === 422 && error.response.data.errorDetails?.inputErrors?.[0]?.code === 'DUPLICATE_POST') {
@@ -516,7 +644,7 @@ export class PostsService {
         ? 'DOCUMENT'
         : 'IMAGE';
   
-      if (mediaType === 'Poll') {
+        if (mediaType === 'Poll') {
         // Log the type of poll to ensure it is an object
         this.logger.log('Poll Type:', typeof pollObject);
   
@@ -626,11 +754,13 @@ export class PostsService {
         'post.scheduled',
         'post.cronFormat', 
         'integration.platform',
+        'integration.icon',
         'postMedia.mediaUrl',
       ])
       .addSelect('COUNT(postHistory.id)', 'historyCount')
       .groupBy('post.id')
       .addGroupBy('integration.platform')
+      .addGroupBy('integration.icon')
       .addGroupBy('postMedia.mediaUrl')
       .orderBy('post.id', 'DESC')  // Sort in descending order by post.id
       .getRawMany();
@@ -679,7 +809,6 @@ export class PostsService {
             else date_day = 'Unknown'; // Handle unexpected values
         }
     }
-
     return { type, date_day };
   }
   

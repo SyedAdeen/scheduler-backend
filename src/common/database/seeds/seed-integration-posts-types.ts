@@ -50,14 +50,12 @@ async function seedIntegrationPostTypes() {
             { integration: linkedinIntegration, postType: imagePostType },
             { integration: linkedinIntegration, postType: videoPostType },
             { integration: linkedinIntegration, postType: pollPostType },
-            { integration: linkedinIntegration, postType: documentPostType },
 
             // Facebook post types
             { integration: facebookIntegration, postType: textPostType },
             { integration: facebookIntegration, postType: imagePostType },
             { integration: facebookIntegration, postType: videoPostType },
-            { integration: facebookIntegration, postType: pollPostType },
-            { integration: facebookIntegration, postType: mediaCarouselPostType }
+
         ];
 
         // Create IntegrationPostsTypes instances

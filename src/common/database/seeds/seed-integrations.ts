@@ -56,7 +56,8 @@ async function seedIntegrations() {
             redirectUri:"/integrations/callback",
             oauthUri:"https://www.facebook.com/v10.0/dialog/oauth",
             tokenUri: "https://graph.facebook.com/oauth/access_token",
-            scope: "public_profile email pages_manage_posts pages_read_engagement publish_to_groups"
+            scope: "public_profile email pages_manage_posts pages_read_engagement publish_to_groups",
+            configId:"485702381103541"
         };
 
         // Save to the database
