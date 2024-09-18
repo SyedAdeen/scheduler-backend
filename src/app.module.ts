@@ -25,11 +25,12 @@ import { v2 as cloudinary } from 'cloudinary';
             imports: [ConfigModule],
             inject: [ConfigService],
             useFactory: async (configService: ConfigService) => ({
-                redis: {
-                    username: configService.get<string>('REDIS_USERNAME'),
-                    password: configService.get<string>('REDIS_PASSWORD'),
-                    url: configService.get<string>('REDIS_URL'),                  
-                },
+                redis: configService.get<string>('REDIS_URL'),
+                // redis: {
+                //     // username: configService.get<string>('REDIS_USERNAME'),
+                //     // password: configService.get<string>('REDIS_PASSWORD'),
+                //     url: configService.get<string>('REDIS_URL'),                  
+                // },
             }),
         }),
         BullModule.registerQueue({ // Register Bull queue for post scheduling
