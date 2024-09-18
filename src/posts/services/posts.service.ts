@@ -140,6 +140,7 @@ export class PostsService {
       //   integrationId,
       //   createPostDto,
       // });
+      this.postToPlatform(post.id, integrationId, createPostDto);
       // const result = await job.finished();  // Waits for the job to finish
       // if (result && result.status === PostStatus.DUPLICATE) {
       //   throw new BadRequestException("Duplicate post detected. Post was not published again.")
@@ -316,6 +317,7 @@ export class PostsService {
   }
 
   private async getPageAccessToken(userAccessToken: string): Promise<any> {
+    this.logger.log("userAccessToken:", userAccessToken);
     try {
       // Graph API URL to get the list of pages associated with the user
       const url = `https://graph.facebook.com/v20.0/me/accounts?access_token=${userAccessToken}`;
@@ -326,6 +328,7 @@ export class PostsService {
         headers: { "Accept-Encoding": "gzip,deflate,compress" } 
       });
 
+      this.logger.log("response:", response);
       // Check if the response has data and at least one page
       if (response.data && response.data.data && response.data.data.length > 0) {
         const page = response.data.data[0]; // Get the first page (or loop to find the desired page)
@@ -343,7 +346,7 @@ export class PostsService {
       } else {
         this.logger.error('No pages found for this user.');
         throw new Error('No pages found.');
-      }
+      } 
 
     } catch (error) {
       this.logger.log("Error", error);

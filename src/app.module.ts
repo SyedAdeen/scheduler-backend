@@ -14,6 +14,7 @@ import { OAuth2Client } from 'google-auth-library';
 import { UtilitiesModule } from './common/utilities/utilities.module';
 import { PostsModule } from './posts/posts.module';
 import { v2 as cloudinary } from 'cloudinary';
+import Redis from 'ioredis';
 
 @Global()
 @Module({
@@ -25,12 +26,10 @@ import { v2 as cloudinary } from 'cloudinary';
             imports: [ConfigModule],
             inject: [ConfigService],
             useFactory: async (configService: ConfigService) => ({
-                redis: configService.get<string>('REDIS_URL'),
-                // redis: {
-                //     // username: configService.get<string>('REDIS_USERNAME'),
-                //     // password: configService.get<string>('REDIS_PASSWORD'),
-                //     url: configService.get<string>('REDIS_URL'),                  
-                // },
+                redis: { 
+                    host: configService.get<string>('REDIS_URL'),
+                    keepAlive: 30000
+                },
             }),
         }),
         BullModule.registerQueue({ // Register Bull queue for post scheduling
