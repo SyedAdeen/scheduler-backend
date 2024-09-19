@@ -135,20 +135,11 @@ export class PostsService {
     } else {
       this.logger.log("Post Immediately");
       // Enqueue immediate post
-      // const job = await this.postSchedulerQueue.add('schedule-post', {
-      //   postId: post.id,
-      //   integrationId,
-      //   createPostDto,
-      // });
-      this.postToPlatform(post.id, integrationId, createPostDto);
-      // const result = await job.finished();  // Waits for the job to finish
-      // if (result && result.status === PostStatus.DUPLICATE) {
-      //   throw new BadRequestException("Duplicate post detected. Post was not published again.")
-      // } else if (result.status == PostStatus.PUBLISHED) {
-      //   return { message: "Post Published Successfully" };
-      // } else {
-      //   throw new InternalServerErrorException('Failed to publish the post.');
-      // } 
+      await this.postSchedulerQueue.add('schedule-post', {
+        postId: post.id,
+        integrationId,
+        createPostDto,
+      });
       return {message:"Post Added"};
     }      
     } catch (error) {
