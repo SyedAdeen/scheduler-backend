@@ -811,5 +811,4 @@ export class PostsService {
     }
     return { type, date_day };
   }
-  
 }
