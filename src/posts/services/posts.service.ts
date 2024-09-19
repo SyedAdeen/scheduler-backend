@@ -135,12 +135,12 @@ export class PostsService {
     } else {
       this.logger.log("Post Immediately");
       // Enqueue immediate post
-      // const job = await this.postSchedulerQueue.add('schedule-post', {
-      //   postId: post.id,
-      //   integrationId,
-      //   createPostDto,
-      // });
-      this.postToPlatform(post.id, integrationId, createPostDto);
+      const job = await this.postSchedulerQueue.add('schedule-post', {
+        postId: post.id,
+        integrationId,
+        createPostDto,
+      });
+      // this.postToPlatform(post.id, integrationId, createPostDto);
       // const result = await job.finished();  // Waits for the job to finish
       // if (result && result.status === PostStatus.DUPLICATE) {
       //   throw new BadRequestException("Duplicate post detected. Post was not published again.")
@@ -279,6 +279,7 @@ export class PostsService {
 
   public async postToPlatform(postId: number, integrationId: number, createPostDto:CreatePostDto) {
     const platform = await this.getPlatformByIntegrationId(integrationId);
+    this.logger.log("I am at the Post To Platform Function");
 
     switch (platform) {
       case 'LinkedIn':
