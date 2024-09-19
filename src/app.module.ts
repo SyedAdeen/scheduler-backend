@@ -14,7 +14,6 @@ import { OAuth2Client } from 'google-auth-library';
 import { UtilitiesModule } from './common/utilities/utilities.module';
 import { PostsModule } from './posts/posts.module';
 import { v2 as cloudinary } from 'cloudinary';
-import Redis from 'ioredis';
 
 @Global()
 @Module({
@@ -26,9 +25,10 @@ import Redis from 'ioredis';
             imports: [ConfigModule],
             inject: [ConfigService],
             useFactory: async (configService: ConfigService) => ({
-                redis: { 
-                    host: configService.get<string>('REDIS_URL'),
-                    keepAlive: 30000
+                redis: {
+                    username: configService.get<string>('REDIS_USERNAME'),
+                    password: configService.get<string>('REDIS_PASSWORD'),
+                    url: configService.get<string>('REDIS_URL'),                  
                 },
             }),
         }),
