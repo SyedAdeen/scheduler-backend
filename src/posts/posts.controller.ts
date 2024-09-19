@@ -137,7 +137,7 @@ export class PostsController {
     const user = request.user;
     // Convert body to DTO
     body.recurring = body.recurring === 'true';
-    console.log("Body  = ", body);
+    Logger.log("Body  = ", body);
     const createPostDto = plainToClass(CreatePostDto, body, { enableImplicitConversion: true });
     createPostDto.recurring=body.recurring; 
     // Handle file upload and media type logic
@@ -175,6 +175,7 @@ export class PostsController {
   @ApiResponse({ status: 400, description: 'Failed to retrieve posts' })
   async getPosts(@Req() request) {
     const user = request.user;
-    return await this.postsService.getPostsForUser(user.id);
+    const response = await this.postsService.getPostsForUser(user.id);
+    return response;
   }
 }
