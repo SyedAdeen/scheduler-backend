@@ -140,16 +140,6 @@ export class PostsService {
         integrationId,
         createPostDto,
       });
-<<<<<<< HEAD
-      const result = await job.finished();  // Waits for the job to finish
-      if (result && result.status === PostStatus.DUPLICATE) {
-        throw new BadRequestException("Duplicate post detected. Post was not published again.")
-      } else if (result.status == PostStatus.PUBLISHED) {
-        return { message: "Post Published Successfully" };
-      } else {
-        throw new InternalServerErrorException('Failed to publish the post.');
-      } 
-=======
       // const result = await job.finished();  // Waits for the job to finish
       // if (result && result.status === PostStatus.DUPLICATE) {
       //   throw new BadRequestException("Duplicate post detected. Post was not published again.")
@@ -159,7 +149,6 @@ export class PostsService {
       //   throw new InternalServerErrorException('Failed to publish the post.');
       // } 
       return {message:"Post Added"};
->>>>>>> develop
     }      
     } catch (error) {
         this.logger.error('Error creating post:', { message: error.message });
