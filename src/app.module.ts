@@ -26,9 +26,13 @@ import { v2 as cloudinary } from 'cloudinary';
             inject: [ConfigService],
             useFactory: async (configService: ConfigService) => ({
                 redis: {
-                    username: configService.get<string>('REDIS_USERNAME'),
+                    host: configService.get<string>('REDIS_HOST'),
+                    port: configService.get<number>('REDIS_PORT'),
                     password: configService.get<string>('REDIS_PASSWORD'),
-                    url: configService.get<string>('REDIS_URL'),                  
+                    tls: {
+                        rejectUnauthorized: false
+                    }
+                    // url: configService.get<string>('REDIS_URL'),                  
                 },
             }),
         }),
