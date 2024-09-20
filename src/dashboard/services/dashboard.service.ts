@@ -1,66 +1,50 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Post } from '@entities/post.entity';
 import { PostHistory } from '@entities/post-history.entity';
-import { Integration } from '@entities/integration.entity';
-import { User } from '@entities/user.entity';
-
 
 @Injectable()
 export class DashboardService {
-  private readonly logger = new Logger(DashboardService.name);
+    constructor(
+        @InjectRepository(Post)
+        private readonly postRepository: Repository<Post>,
+        @InjectRepository(PostHistory)
+        private readonly postHistoryRepository: Repository<PostHistory>
+    ) {}
 
-  constructor(
-    @InjectRepository(Post) private readonly postRepository: Repository<Post>,
-    @InjectRepository(PostHistory) private readonly postHistoryRepository: Repository<PostHistory>,
-    @InjectRepository(Integration) private readonly integrationRepository: Repository<Integration>,
-  ) {}
+    async getPostCountsForIntegration(
+        userId: number,
+        integrationId: number,
+        startDate: string,
+        endDate: string
+    ): Promise<any> {
+        // Get post counts for the specified integration and time range
+        const postCounts = await this.postRepository.createQueryBuilder('post')
+            .leftJoinAndSelect('post.integration', 'integration')
+            .select('integration.platform', 'platform')
+            .addSelect('COUNT(post.id)', 'postCount')
+            .where('post.user_id = :userId', { userId })
+            .andWhere('post.integration_id = :integrationId', { integrationId })
+            .andWhere('post.scheduled BETWEEN :startDate AND :endDate', { startDate, endDate })
+            .groupBy('integration.platform')
+            .getRawOne();
 
-  async getPostCountsForIntegration(userId: number, recurringType: string) {
-    // Count of posts by cronFormat (Daily, Weekly, Monthly)
-    const postCounts = await this.postRepository.createQueryBuilder('post')
-      .select('post.cronFormat, COUNT(post.id) as count')
-      .where('post.user.id = :userId', { userId }) 
-      .andWhere('post.cronFormat = :recurringType', { recurringType }) // Filter by recurring type
-      .groupBy('post.cronFormat')
-      .getRawMany();
-  
-    const postCountsByType = {
-      Daily: 0,
-      Weekly: 0,
-      Monthly: 0,
-    };
-  
-    postCounts.forEach(post => {
-      if (post.cronFormat === '0 0 * * *') postCountsByType.Daily = post.count;
-      else if (post.cronFormat === '0 0 * * 0') postCountsByType.Weekly = post.count;
-      else if (post.cronFormat === '0 0 1 * *') postCountsByType.Monthly = post.count;
-    });
-  
-    // Get post history counts (Success and Failure) grouped by post's integration_id
-    const postHistoryCounts = await this.postHistoryRepository.createQueryBuilder('post_history')
-      .select('post.integration_id, SUM(CASE WHEN post_history.success = true THEN 1 ELSE 0 END) AS successCount, SUM(CASE WHEN post_history.success = false THEN 1 ELSE 0 END) AS failureCount')
-      .innerJoin('post_history.post', 'post') // Join post_history with post
-      .where('post.user.id = :userId', { userId }) // Filter by user ID
-      .groupBy('post.integration_id') // Group by integration_id from the Post table
-      .getRawMany();
-  
-    // Get integration information
-    const integrations = await this.integrationRepository.find();
-  
-    // Format the response
-    const response = integrations.map(integration => {
-      const history = postHistoryCounts.find(ph => ph.integration_id === integration.id) || { successCount: 0, failureCount: 0 };
-      return {
-        integration: integration.platform,
-        postCounts: postCountsByType,
-        successCount: history.successCount,
-        failureCount: history.failureCount,
-      };
-    });
-  
-    return response;
-  }
+        // Get post history counts for the specified integration and time range
+        const postHistoryCounts = await this.postHistoryRepository.createQueryBuilder('postHistory')
+            .leftJoin('postHistory.post', 'post')
+            .select('post.integration_id', 'integrationId')
+            .addSelect('COUNT(CASE WHEN postHistory.success = true THEN 1 END)', 'successCount')
+            .addSelect('COUNT(CASE WHEN postHistory.success = false THEN 1 END)', 'failureCount')
+            .where('post.user_id = :userId', { userId })
+            .andWhere('post.integration_id = :integrationId', { integrationId })
+            .andWhere('postHistory.timestamp BETWEEN :startDate AND :endDate', { startDate, endDate })
+            .groupBy('post.integration_id')
+            .getRawOne();
 
+        return {
+            postCounts,
+            postHistoryCounts,
+        };
+    }
 }
