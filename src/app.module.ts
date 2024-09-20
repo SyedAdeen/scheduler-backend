@@ -8,6 +8,7 @@ import { AppService } from './app.service';
 import dataBaseConfig from './common/database/ormconfig';
 import { AuthModule } from './auth/auth.module';
 import { IntegrationModule } from './integration/integration.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { createClient } from '@redis/client';
 import { OAuth2Client } from 'google-auth-library';
@@ -38,6 +39,7 @@ import { v2 as cloudinary } from 'cloudinary';
         AuthModule,
         IntegrationModule,
         PostsModule,
+        DashboardModule,
         UtilitiesModule,
         MailerModule.forRootAsync({
             imports: [ConfigModule],

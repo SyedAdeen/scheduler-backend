@@ -1,57 +1,66 @@
-import { BadRequestException, Injectable, Logger, NotFoundException, Inject, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { IntegrationPostsTypes } from '../../common/database/entities/integration-posts-types.entity';
-import { Post } from '../../common/database/entities/post.entity';
-import { PostMedia } from '../../common/database/entities/post-media.entity';
-import { UserIntegration } from '../../common/database/entities/user-integration.entity';
-import { Integration } from '@entities/integration.entity';
-import { v2 as Cloudinary } from 'cloudinary';
-import { classToPlain } from 'class-transformer';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
+import { Post } from '@entities/post.entity';
 import { PostHistory } from '@entities/post-history.entity';
-import * as FormData from 'form-data'
+import { Integration } from '@entities/integration.entity';
+import { User } from '@entities/user.entity';
+
 
 @Injectable()
 export class DashboardService {
   private readonly logger = new Logger(DashboardService.name);
 
   constructor(
-    @InjectRepository(IntegrationPostsTypes)
-    private readonly integrationPostsTypesRepository: Repository<IntegrationPostsTypes>,
-    @InjectRepository(Post)
-    private readonly postRepository: Repository<Post>,
-    @InjectRepository(Integration)
-    private readonly integrationRepository: Repository<Integration>,
-    @InjectRepository(PostHistory)
-    private readonly postHistoryRepository: Repository<PostHistory>,
-    @InjectRepository(PostMedia)
-    private readonly postMediaRepository: Repository<PostMedia>,
-    @InjectRepository(UserIntegration)
-    private readonly userIntegrationRepository: Repository<UserIntegration>,
-    @Inject('CLOUDINARY') private readonly cloudinary: typeof Cloudinary,
-    @InjectQueue('post-scheduler') private readonly postSchedulerQueue: Queue,
+    @InjectRepository(Post) private readonly postRepository: Repository<Post>,
+    @InjectRepository(PostHistory) private readonly postHistoryRepository: Repository<PostHistory>,
+    @InjectRepository(Integration) private readonly integrationRepository: Repository<Integration>,
   ) {}
 
-  async getPostTypesForIntegration(integrationId: number): Promise<{ id: number, name: string }[]> {
-    const integrationIdNumber = integrationId;
-    if (isNaN(integrationIdNumber)) {
-      throw new NotFoundException(`Invalid integration ID ${integrationId}`);
-    }
-
-    const postTypes = await this.integrationPostsTypesRepository.find({
-      where: { integration: { id: integrationIdNumber } },
-      relations: ['postType'],
+  async getPostCountsForIntegration(userId: number, recurringType: string) {
+    // Count of posts by cronFormat (Daily, Weekly, Monthly)
+    const postCounts = await this.postRepository.createQueryBuilder('post')
+      .select('post.cronFormat, COUNT(post.id) as count')
+      .where('post.user.id = :userId', { userId }) 
+      .andWhere('post.cronFormat = :recurringType', { recurringType }) // Filter by recurring type
+      .groupBy('post.cronFormat')
+      .getRawMany();
+  
+    const postCountsByType = {
+      Daily: 0,
+      Weekly: 0,
+      Monthly: 0,
+    };
+  
+    postCounts.forEach(post => {
+      if (post.cronFormat === '0 0 * * *') postCountsByType.Daily = post.count;
+      else if (post.cronFormat === '0 0 * * 0') postCountsByType.Weekly = post.count;
+      else if (post.cronFormat === '0 0 1 * *') postCountsByType.Monthly = post.count;
     });
-
-    if (!postTypes.length) {
-      throw new NotFoundException(`No post types found for integration ID ${integrationId}`);
-    }
-
-    return postTypes.map((pt) => ({
-      id: pt.postType.id,
-      name: pt.postType.name,
-    }));
+  
+    // Get post history counts (Success and Failure) grouped by post's integration_id
+    const postHistoryCounts = await this.postHistoryRepository.createQueryBuilder('post_history')
+      .select('post.integration_id, SUM(CASE WHEN post_history.success = true THEN 1 ELSE 0 END) AS successCount, SUM(CASE WHEN post_history.success = false THEN 1 ELSE 0 END) AS failureCount')
+      .innerJoin('post_history.post', 'post') // Join post_history with post
+      .where('post.user.id = :userId', { userId }) // Filter by user ID
+      .groupBy('post.integration_id') // Group by integration_id from the Post table
+      .getRawMany();
+  
+    // Get integration information
+    const integrations = await this.integrationRepository.find();
+  
+    // Format the response
+    const response = integrations.map(integration => {
+      const history = postHistoryCounts.find(ph => ph.integration_id === integration.id) || { successCount: 0, failureCount: 0 };
+      return {
+        integration: integration.platform,
+        postCounts: postCountsByType,
+        successCount: history.successCount,
+        failureCount: history.failureCount,
+      };
+    });
+  
+    return response;
   }
+
 }

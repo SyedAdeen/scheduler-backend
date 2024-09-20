@@ -1,36 +1,41 @@
 import {
-Controller,
-Get,
-Post,
-Body,
-Param,
-UseGuards,
-UploadedFiles,
-UseInterceptors,
-BadRequestException,
-Req,
-Logger,
+    Controller,
+    Post,
+    UseGuards,
+    Req,
+    Body,
+    Logger,
 } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
-import { FileFieldsInterceptor } from '@nestjs/platform-express'; // Correct import
+import {
+    ApiOperation,
+    ApiResponse,
+    ApiTags,
+    ApiBearerAuth,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { plainToClass } from 'class-transformer';
-import { DashboardService } from './services/dashboard.service';  
+import { DashboardService } from './services/dashboard.service';
+import { PostCountsDto } from './dtos/post-counts.dto'; // DTO for handling request body
 
-@Controller('')
-@ApiTags('Posts')
+@ApiTags('Dashboard')
+@Controller('dashboard')
 export class DashboardController {
-constructor(private readonly dashboardService: DashboardService) {}
+    private readonly logger = new Logger(DashboardController.name);
 
-    @Get('/dashboard')
+    constructor(private readonly dashboardService: DashboardService) {}
+
+    @Post('post-counts')  // Changed to POST
     @ApiBearerAuth('access-token')
     @UseGuards(JwtAuthGuard)
-    @ApiOperation({ summary: 'Get all posts with related data' })
+    @ApiOperation({ summary: 'Get post counts by recurring type and post history' })
     @ApiResponse({ status: 200, description: 'Data retrieved successfully' })
     @ApiResponse({ status: 401, description: 'Unauthorized' })
     @ApiResponse({ status: 400, description: 'Failed to retrieve posts' })
-    async getPosts(@Req() request) {
+    async getPostCounts(
+        @Req() request, 
+        @Body() postCountsDto: PostCountsDto // Accept body input for recurring type
+    ): Promise<any> {
         const user = request.user;
-        return await this.dashboardService.getPostTypesForIntegration(user.id);
+        this.logger.log(`Fetching post counts for user ID: ${user.id}`);
+        return await this.dashboardService.getPostCountsForIntegration(user.id, postCountsDto.recurringType);
     }
 }
