@@ -26,7 +26,7 @@ export class DashboardService {
             .addSelect('COUNT(post.id)', 'postCount')
             .where('post.user_id = :userId', { userId })
             .andWhere('post.integration_id = :integrationId', { integrationId })
-            .andWhere('post.scheduled BETWEEN :startDate AND :endDate', { startDate, endDate })
+            .andWhere('post.created_at BETWEEN :startDate AND :endDate', { startDate, endDate })
             .groupBy('integration.platform')
             .getRawOne();
 
