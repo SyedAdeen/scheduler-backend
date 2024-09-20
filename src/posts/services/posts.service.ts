@@ -15,6 +15,8 @@ import { Queue } from 'bull';
 import { PostHistory } from '@entities/post-history.entity';
 import { PostStatus } from '../dtos/create-post.dto';
 import * as FormData from 'form-data'
+import e from 'express';
+import { create } from 'domain';
 
 @Injectable()
 export class PostsService {
@@ -94,6 +96,43 @@ export class PostsService {
       }     
 
     }
+
+    if (createPostDto.scheduled) {
+      const isRecurring = createPostDto.recurring;
+    
+      if (!isRecurring) {
+        // Handle one-time scheduling
+        const inputDate = new Date(createPostDto.scheduled); // This assumes input is in UTC
+        if (isNaN(inputDate.getTime())) {
+          throw new BadRequestException('Invalid date format for one-time scheduling.');
+        }
+        createPostDto.scheduled = inputDate.toISOString();
+      } else {
+        // Handle recurring posts
+        const currentDate = new Date();
+        const currentDateStr = currentDate.toISOString().split('T')[0]; // 'YYYY-MM-DD'
+    
+        // Extract time part (HH:MM)
+        const time = createPostDto.scheduled;
+        if (!time || !/^([01]\d|2[0-3]):([0-5]\d)$/.test(time)) {
+          throw new BadRequestException('Invalid time format for recurring scheduling. Expected format is HH:MM.');
+        }
+    
+        this.logger.log("time = ", time);
+    
+        // Construct the full datetime string in UTC format without time zone conversion
+        const utcScheduledDate = new Date(`${currentDateStr}T${time}:00Z`); // Add 'Z' to indicate UTC
+        this.logger.log("utc Schedule Date = ", utcScheduledDate);
+    
+        // Validate the constructed date-time
+        if (isNaN(utcScheduledDate.getTime())) {
+          throw new BadRequestException('Invalid date-time format for recurring scheduling.');
+        }
+    
+        createPostDto.scheduled = utcScheduledDate.toISOString();
+      }
+    }
+    
     
     const post = this.postRepository.create({
       ...createPostDto,
@@ -135,19 +174,15 @@ export class PostsService {
     } else {
       this.logger.log("Post Immediately");
       // Enqueue immediate post
-      const job = await this.postSchedulerQueue.add('schedule-post', {
+      await this.postSchedulerQueue.add('schedule-post', {
+        limiter: {
+          max: 10, // Maximum 10 jobs
+          duration: 1000 * 60 * 5, // Every 5 minutes
+        },
         postId: post.id,
         integrationId,
         createPostDto,
       });
-      // const result = await job.finished();  // Waits for the job to finish
-      // if (result && result.status === PostStatus.DUPLICATE) {
-      //   throw new BadRequestException("Duplicate post detected. Post was not published again.")
-      // } else if (result.status == PostStatus.PUBLISHED) {
-      //   return { message: "Post Published Successfully" };
-      // } else {
-      //   throw new InternalServerErrorException('Failed to publish the post.');
-      // } 
       return {message:"Post Added"};
     }      
     } catch (error) {
@@ -175,95 +210,101 @@ export class PostsService {
     scheduledDate: string, 
     integrationId: number, 
     createPostDto: CreatePostDto
-  ): Promise<{message:string}> {
+  ): Promise<{ message: string }> {
   
     if (createPostDto.recurring) {
-      // For recurring posts, use cron
-      const cronPattern = this.generateCronPatternFromDate(scheduledDate, createPostDto); // This function generates a cron pattern
-      this.logger.log("recurring Cron Pattern = ", cronPattern);
+      // For recurring posts, generate a cron pattern
+      const cronPattern = this.generateCronPatternFromDate(createPostDto.scheduled, createPostDto);
+      this.logger.log("Recurring Cron Pattern = ", cronPattern);
+  
       await this.postRepository.update(postId, { cronFormat: cronPattern });
       await this.postSchedulerQueue.add('schedule-post', {
+        limiter: {
+          max: 10, // Maximum 10 jobs
+          duration: 1000 * 60 * 5, // Every 5 minutes
+        },
         postId,
         integrationId,
         createPostDto,
       }, {
-        repeat: { cron: cronPattern }, // Use cron for recurring posts
+        repeat: { cron: cronPattern },
         removeOnComplete: true,
         removeOnFail: true,
       });
+  
       this.logger.log(`Recurring post scheduled with cron pattern: ${cronPattern}`);
-      if (createPostDto.recurring && createPostDto.recurring_type) {
-        let details = `Recurring Post scheduled with type ${createPostDto.recurring_type}`;
-        
-        if (createPostDto.scheduled) {
-          details += ` and scheduled at ${createPostDto.scheduled}`;
-        }
-        
-        if (createPostDto.dayofweek) {
-          details += ` on ${createPostDto.dayofweek}`;
-        }
-        
-        if (createPostDto.dateofmonth) {
-          details += ` on the ${createPostDto.dateofmonth}${this.getOrdinalSuffix(createPostDto.dateofmonth)}`;
-        }
-      
-      }
-      return {message:"Recurring Post has been scheduled"};
+      return { message: "Recurring Post has been scheduled" };
     } else if (scheduledDate) {
-      // For one-time scheduled posts, you can use a specific cron pattern
+      // Handle one-time scheduled posts
+      const delay = new Date(scheduledDate).getTime() - Date.now();
+      if (delay < 0) {
+        await this.createPostHistory(postId, 'Failed', "Scheduled date must be in the future.", false);
+        throw new BadRequestException("Scheduled date must be in the future.");
+      }
+  
       await this.postSchedulerQueue.add('schedule-post', {
+        limiter: {
+          max: 10, // Maximum 10 jobs
+          duration: 1000 * 60 * 5, // Every 5 minutes
+        },
         postId,
         integrationId,
         createPostDto,
-      },{
-        delay: new Date(scheduledDate).getTime() - Date.now(),
+      }, {
+        delay,
         removeOnComplete: true,
         removeOnFail: true,
       });
+  
       this.logger.log(`Post scheduled for: ${scheduledDate}`);
-      return {message: `Post scheduled for: ${scheduledDate}`};
-    } 
+      return { message: `Post scheduled for: ${scheduledDate}` };
+    }
   }
   
   // Helper function to generate cron patterns based on date
   private generateCronPatternFromDate(scheduledTime: string, createPostDto: CreatePostDto): string {
-    // Parse the scheduled time (e.g., '19:18')
-    const [hours, minutes] = scheduledTime.split(':').map(Number);
-
+    // Parse the scheduled time (e.g., '2024-09-19T13:08:00.000Z')
+    const dateObj = new Date(scheduledTime);
+  
+    // Extract hours and minutes in UTC
+    const hours = dateObj.getUTCHours();
+    const minutes = dateObj.getUTCMinutes();
+  
     const recurringType = createPostDto.recurring_type;
-    const currentDayOfWeek = createPostDto.dayofweek; // Assuming this is provided as a string like 'Monday'
-    const currentDateOfMonth = createPostDto.dateofmonth; // Assuming this is a number from 1 to 31
-
+    const currentDayOfWeek = createPostDto.dayofweek; // Day of the week name
+    const currentDateOfMonth = createPostDto.dateofmonth; // Day of the month (1-31)
+  
     // Map day names to cron values
     const dayOfWeekMap: { [key: string]: number } = {
-        'Sunday': 0,
-        'Monday': 1,
-        'Tuesday': 2,
-        'Wednesday': 3,
-        'Thursday': 4,
-        'Friday': 5,
-        'Saturday': 6
+      'Sunday': 0,
+      'Monday': 1,
+      'Tuesday': 2,
+      'Wednesday': 3,
+      'Thursday': 4,
+      'Friday': 5,
+      'Saturday': 6
     };
-
+  
     switch (recurringType) {
-        case 'Daily':
-            // Every day at the specified time
-            return `${minutes} ${hours} * * *`;
-
-        case 'Weekly':
-            // Convert day of week name to cron value
-            const cronDayOfWeek = dayOfWeekMap[currentDayOfWeek] !== undefined ? dayOfWeekMap[currentDayOfWeek] : '*';
-            return `${minutes} ${hours} * * ${cronDayOfWeek}`;
-
-        case 'Monthly':
-            // Ensure dateOfMonth is within valid range (1-31)
-            const validDateOfMonth = (currentDateOfMonth >= 1 && currentDateOfMonth <= 31) ? currentDateOfMonth : '*';
-            return `${minutes} ${hours} ${validDateOfMonth} * *`;
-
-        default:
-            throw new BadRequestException('Invalid recurring type');
+      case 'Daily':
+        // Every day at the specified time
+        return `${minutes} ${hours} * * *`;
+  
+      case 'Weekly':
+        // Convert day of week name to cron value
+        const cronDayOfWeek = dayOfWeekMap[currentDayOfWeek] !== undefined ? dayOfWeekMap[currentDayOfWeek] : '*';
+        return `${minutes} ${hours} * * ${cronDayOfWeek}`;
+  
+      case 'Monthly':
+        // Ensure dateOfMonth is within valid range (1-31)
+        const validDateOfMonth = (currentDateOfMonth >= 1 && currentDateOfMonth <= 31) ? currentDateOfMonth : '*';
+        return `${minutes} ${hours} ${validDateOfMonth} * *`;
+  
+      default:
+        throw new BadRequestException('Invalid recurring type');
     }
   }
+  
 
   private getOrdinalSuffix(day: number): string {
     if (day >= 11 && day <= 13) return 'th';
@@ -278,6 +319,7 @@ export class PostsService {
 
   public async postToPlatform(postId: number, integrationId: number, createPostDto:CreatePostDto) {
     const platform = await this.getPlatformByIntegrationId(integrationId);
+    this.logger.log("In the Post To Platform Function");
 
     switch (platform) {
       case 'LinkedIn':
@@ -301,7 +343,7 @@ export class PostsService {
     const userAccessToken = await this.getAccessToken(post.user.id, integrationId);
     
     // Step 2: Use the User Access Token to retrieve the Page Access Token
-    const {pageAccessToken,pageId} = await this.getPageAccessToken(userAccessToken);
+    const {pageAccessToken,pageId} = await this.getPageAccessToken(postId,userAccessToken);
     
     // Step 3: Use the Page Access Token to post the content
     switch (createPostDto.mediaType) {  
@@ -315,7 +357,7 @@ export class PostsService {
     }
   }
 
-  private async getPageAccessToken(userAccessToken: string): Promise<any> {
+  private async getPageAccessToken(postId:number, userAccessToken: string): Promise<any> {
     try {
       // Graph API URL to get the list of pages associated with the user
       const url = `https://graph.facebook.com/v20.0/me/accounts?access_token=${userAccessToken}`;
@@ -347,20 +389,16 @@ export class PostsService {
 
     } catch (error) {
       this.logger.log("Error", error);
+      await this.createPostHistory(postId, 'Failed', error, false);
       throw new Error('Failed to retrieve Page Access Token.');
     }
   }
 
   private async postContentToFacebook(postId:number,pageId: string, message: string, accessToken: string, scheduledTime?: string) {
     const url = `https://graph.facebook.com/v20.0/${pageId}/feed`;
-  
-    // Convert scheduledTime to UNIX timestamp if it's provided
-    const scheduledPublishTime = scheduledTime ? Math.floor(new Date(scheduledTime).getTime() / 1000) : undefined;
-
     const payload = {
       message: message,
-      published: !scheduledTime, // If scheduledTime is provided, set published to false
-      ...(scheduledPublishTime && { scheduled_publish_time: scheduledPublishTime }),
+      published: true
     };
     
     try {
@@ -377,6 +415,7 @@ export class PostsService {
       await this.createPostHistory(postId, 'Published', `Content Published Successfully`, true);
       return { status: 'Published', id: response.data.id };
     } catch (error) {
+      await this.createPostHistory(postId, 'Failed', error, false);
       this.logger.error('Error publishing content to Facebook:', error.response?.data);
       throw new BadRequestException('Failed to publish content to Facebook.');
     }
@@ -400,6 +439,7 @@ export class PostsService {
       return { status: 'Published', post_id: response.data.post_id };
     } catch (error) {
       this.logger.error('Error publishing image to Facebook:', error.response?.data);
+      await this.createPostHistory(postId, 'Failed', error, false);
       throw new BadRequestException('Failed to publish image to Facebook.');
     }
   }
@@ -423,6 +463,7 @@ export class PostsService {
       return { status: 'Published', id: response.data.id };
     } catch (error) {
       this.logger.error('Error publishing video to Facebook:', error.response?.data);
+      await this.createPostHistory(postId, 'Failed', error, false);
       throw new BadRequestException('Failed to publish video to Facebook.');
     }
   }  
@@ -606,6 +647,7 @@ export class PostsService {
         response: error.response?.data,
         status: error.response?.status,
       });
+      await this.createPostHistory(postId, 'Failed', error, false);
       throw new BadRequestException('Failed to publish post to LinkedIn.');      
     }
   }
@@ -631,6 +673,7 @@ export class PostsService {
             this.logger.error('Failed to parse pollObject:', {
               message: error.message,
             });
+            await this.createPostHistory(post.id, 'Failed', error, false);
             throw new BadRequestException('Invalid poll object format.');
           }
         }
@@ -737,6 +780,7 @@ export class PostsService {
         response: error.response?.data,
         status: error.response?.status,
       });
+      await this.createPostHistory(post.id, 'Failed', error, false);
       throw new BadRequestException('Failed to publish post to LinkedIn.');
     }
   }
@@ -758,7 +802,8 @@ export class PostsService {
         'integration.icon',
         'postMedia.mediaUrl',
       ])
-      .addSelect('COUNT(postHistory.id)', 'historyCount')
+      .addSelect('SUM(CASE WHEN postHistory.success = true THEN 1 ELSE 0 END)', 'successTrueCount')
+      .addSelect('SUM(CASE WHEN postHistory.success = false THEN 1 ELSE 0 END)', 'successFalseCount')
       .groupBy('post.id')
       .addGroupBy('integration.platform')
       .addGroupBy('integration.icon')
@@ -770,10 +815,14 @@ export class PostsService {
       // Determine recurring type and additional details
       const recurringDetails = this.getRecurringDetails(post.post_cronFormat);
 
+      // Format history counts as "successTrueCount / successFalseCount"
+      const formattedHistoryCount = `${post.successTrueCount || 0}/${post.successFalseCount || 0}`;
+
       return {
         ...post,
         recurringType: recurringDetails.type,
         date_day: recurringDetails.date_day,
+        historyCount: formattedHistoryCount, // Format history counts as requested
       };
     });
   }
@@ -812,4 +861,5 @@ export class PostsService {
     }
     return { type, date_day };
   }
+
 }

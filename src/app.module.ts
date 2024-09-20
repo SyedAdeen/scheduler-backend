@@ -27,14 +27,23 @@ import { v2 as cloudinary } from 'cloudinary';
             inject: [ConfigService],
             useFactory: async (configService: ConfigService) => ({
                 redis: {
-                    username: configService.get<string>('REDIS_USERNAME'),
+                    host: configService.get<string>('REDIS_HOST'),
+                    port: configService.get<number>('REDIS_PORT'),
                     password: configService.get<string>('REDIS_PASSWORD'),
-                    url: configService.get<string>('REDIS_URL'),                  
-                },
+                    tls: {
+                        rejectUnauthorized: false
+                    }
+                    // username: configService.get<string>('REDIS_USERNAME'),
+                    // password: configService.get<string>('REDIS_PASSWORD'),
+                    // url: configService.get<string>('REDIS_URL'),                  
+                }, 
             }),
         }),
         BullModule.registerQueue({ // Register Bull queue for post scheduling
             name: 'post-scheduler',
+            settings:{
+                stalledInterval: 60000, // Check for stalled jobs every 1 minute (60000 milliseconds)
+            }
         }),
         AuthModule,
         IntegrationModule,

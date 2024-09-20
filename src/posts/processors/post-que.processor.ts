@@ -6,7 +6,8 @@ import { PostsService } from '../services/posts.service';
 export class PostQueueProcessor {
   constructor(private readonly postsService: PostsService) {}
 
-  @Process('schedule-post')
+  // Process jobs of type 'schedule-post'
+  @Process({ name: 'schedule-post', concurrency: 1 })
   async handlePostSchedule(job: Job) {
     const { postId, integrationId, createPostDto } = job.data;
 
