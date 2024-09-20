@@ -40,6 +40,9 @@ import { v2 as cloudinary } from 'cloudinary';
         }),
         BullModule.registerQueue({ // Register Bull queue for post scheduling
             name: 'post-scheduler',
+            settings:{
+                stalledInterval: 60000, // Check for stalled jobs every 1 minute (60000 milliseconds)
+            }
         }),
         AuthModule,
         IntegrationModule,

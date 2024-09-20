@@ -175,6 +175,10 @@ export class PostsService {
       this.logger.log("Post Immediately");
       // Enqueue immediate post
       await this.postSchedulerQueue.add('schedule-post', {
+        limiter: {
+          max: 10, // Maximum 10 jobs
+          duration: 1000 * 60 * 5, // Every 5 minutes
+        },
         postId: post.id,
         integrationId,
         createPostDto,
@@ -215,6 +219,10 @@ export class PostsService {
   
       await this.postRepository.update(postId, { cronFormat: cronPattern });
       await this.postSchedulerQueue.add('schedule-post', {
+        limiter: {
+          max: 10, // Maximum 10 jobs
+          duration: 1000 * 60 * 5, // Every 5 minutes
+        },
         postId,
         integrationId,
         createPostDto,
@@ -230,10 +238,15 @@ export class PostsService {
       // Handle one-time scheduled posts
       const delay = new Date(scheduledDate).getTime() - Date.now();
       if (delay < 0) {
+        await this.createPostHistory(postId, 'Failed', "Scheduled date must be in the future.", false);
         throw new BadRequestException("Scheduled date must be in the future.");
       }
   
       await this.postSchedulerQueue.add('schedule-post', {
+        limiter: {
+          max: 10, // Maximum 10 jobs
+          duration: 1000 * 60 * 5, // Every 5 minutes
+        },
         postId,
         integrationId,
         createPostDto,
