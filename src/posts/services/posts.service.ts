@@ -102,11 +102,11 @@ export class PostsService {
     
       if (!isRecurring) {
         // Handle one-time scheduling
-        const formattedDate = new Date(createPostDto.scheduled).toISOString();
-        if (isNaN(new Date(formattedDate).getTime())) {
+        const inputDate = new Date(createPostDto.scheduled); // This assumes input is in UTC
+        if (isNaN(inputDate.getTime())) {
           throw new BadRequestException('Invalid date format for one-time scheduling.');
         }
-        createPostDto.scheduled = formattedDate;
+        createPostDto.scheduled = inputDate.toISOString();
       } else {
         // Handle recurring posts
         const currentDate = new Date();
@@ -118,18 +118,21 @@ export class PostsService {
           throw new BadRequestException('Invalid time format for recurring scheduling. Expected format is HH:MM.');
         }
     
-        // Construct the full datetime string in UTC format
-        const utcScheduledDate = `${currentDateStr}T${time}:00Z`;
+        this.logger.log("time = ", time);
+    
+        // Construct the full datetime string in UTC format without time zone conversion
+        const utcScheduledDate = new Date(`${currentDateStr}T${time}:00Z`); // Add 'Z' to indicate UTC
+        this.logger.log("utc Schedule Date = ", utcScheduledDate);
     
         // Validate the constructed date-time
-        const formattedDate = new Date(utcScheduledDate).toISOString();
-        if (isNaN(new Date(formattedDate).getTime())) {
+        if (isNaN(utcScheduledDate.getTime())) {
           throw new BadRequestException('Invalid date-time format for recurring scheduling.');
         }
     
-        createPostDto.scheduled = formattedDate;
+        createPostDto.scheduled = utcScheduledDate.toISOString();
       }
-    }       
+    }
+    
     
     const post = this.postRepository.create({
       ...createPostDto,
