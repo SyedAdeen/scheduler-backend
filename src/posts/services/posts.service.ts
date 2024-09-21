@@ -345,6 +345,8 @@ export class PostsService {
     // Step 2: Use the User Access Token to retrieve the Page Access Token
     const { pageAccessToken, pageId } = await this.getPageAccessToken(postId, userAccessToken);
 
+    this.logger.log("Media Type:", createPostDto.mediaType);
+
     // Step 3: Use the Page Access Token to post the content
     switch (createPostDto.mediaType) {
       case MediaType.TEXT:
@@ -352,6 +354,9 @@ export class PostsService {
       case MediaType.IMAGE:
         const imageUrl = post.postMedia[0]?.mediaUrl; // Assuming a single image
         return await this.postImageToFacebook(postId, pageId, imageUrl, post.content, pageAccessToken);
+      case MediaType.MediaCarousel:
+        this.logger.log("posting multiple images...", post.postMedia);
+        return await this.postMultipleImagesToFacebook(postId, pageId, post.postMedia.map(pm => pm.mediaUrl), post.content, pageAccessToken);
       case MediaType.VIDEO:
         return await this.postVideoToFacebook(postId, pageId, post.postMedia[0]?.mediaUrl, post.content, pageAccessToken);
     }
@@ -423,13 +428,13 @@ export class PostsService {
     }
   }
 
-  private async postImageToFacebook(postId: number, pageId: string, imageUrl: string, message: string, accessToken: string) {
+  private async postImageToFacebook(postId: number, pageId: string, imageUrl: string, message: string, accessToken: string, publish = true): Promise<{ status: string, post_id: string }> {
     const url = `https://graph.facebook.com/v20.0/${pageId}/photos`;
 
     const payload = {
       url: imageUrl,
       caption: message,
-      published: true,
+      published: publish,
     };
 
     try {
@@ -438,12 +443,41 @@ export class PostsService {
       });
       this.logger.log('Image posted successfully:', response.data);
       await this.createPostHistory(postId, 'Published', `Image Published Successfully`, true);
-      return { status: 'Published', post_id: response.data.post_id };
+      return { status: 'Published', post_id: response.data.id };
     } catch (error) {
       this.logger.error('Error publishing image to Facebook:', error.response?.data);
       await this.createPostHistory(postId, 'Failed', error, false);
       throw new BadRequestException('Failed to publish image to Facebook.');
     }
+  }
+
+  private async postMultipleImagesToFacebook(postId: number, pageId: string, imageUrls: string[], message: string, accessToken: string) {
+    this.logger.log("In postMultipleImagesToFacebook", imageUrls);
+    const imagePromises = imageUrls.map(imageUrl => this.postImageToFacebook(postId, pageId, imageUrl, message, accessToken, false));
+    const images = await Promise.all(imagePromises);
+    this.logger.log("imageIds:", images);
+    const url = `https://graph.facebook.com/v20.0/${pageId}/feed`;
+
+    const data = {
+      message: message ?? "",
+      access_token: accessToken,
+      published: true,
+      attached_media: images.map((image, index) => ({ media_fbid: image.post_id }))
+    }
+
+    this.logger.log("data:", data);
+    
+    try {
+      const response = await axios.post(url, data);
+      this.logger.log("response:", response.data);
+    } catch (error) {
+      this.logger.log("error:", {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+      });
+    }
+    return "";
   }
 
   private async postVideoToFacebook(postId: number, pageId: string, videoUrl: string, description: string, accessToken: string) {

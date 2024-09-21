@@ -127,7 +127,10 @@ export class PostsController {
   async createPost(
     @Body() body: any,
     @UploadedFiles() files: {
-      'Media Carousel'?: Express.Multer.File[],
+      'Media Carousel[0]'?: Express.Multer.File[],
+      'Media Carousel[1]'?: Express.Multer.File[],
+      'Media Carousel[2]'?: Express.Multer.File[],
+      'Media Carousel[3]'?: Express.Multer.File[],
       'Image'?: Express.Multer.File[],
       'Video'?: Express.Multer.File[],
       'Document'?: Express.Multer.File[],
