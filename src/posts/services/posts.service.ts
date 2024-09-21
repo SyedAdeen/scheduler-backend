@@ -719,7 +719,7 @@ export class PostsService {
             headers: {
               Authorization: `Bearer ${accessToken}`,
               'Content-Type': 'application/json',
-              'LinkedIn-Version': '202309',
+              'LinkedIn-Version': '202409',
               'X-Restli-Protocol-Version': '2.0.0',
             },
           }
