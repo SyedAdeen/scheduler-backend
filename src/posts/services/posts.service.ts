@@ -17,6 +17,7 @@ import { PostStatus } from '../dtos/create-post.dto';
 import * as FormData from 'form-data'
 import e from 'express';
 import { create } from 'domain';
+import { access } from 'fs';
 
 @Injectable()
 export class PostsService {
@@ -367,6 +368,8 @@ export class PostsService {
         headers: { "Accept-Encoding": "gzip,deflate,compress" }
       });
 
+      this.logger.log("response:", response.data);
+
       // Check if the response has data and at least one page
       if (response.data && response.data.data && response.data.data.length > 0) {
         const page = response.data.data[0]; // Get the first page (or loop to find the desired page)
@@ -491,18 +494,25 @@ export class PostsService {
     if (mediaType !== 'Poll') {
       if (post.postMedia && post.postMedia.length > 0) {
         for (const media of post.postMedia) {
-          const mediaAsset = await this.registerLinkedInMedia(media.mediaUrl, accessToken, mediaType);
+          let mediaAsset;
+          if (mediaType === 'Document') {
+            Logger.log("A document is being uploaded");
+            mediaAsset = await this.registerLinkedInDocument(media.mediaUrl, accessToken);
+          } else {
+            Logger.log("An image/video is being uploaded");
+            mediaAsset = await this.registerLinkedInMedia(media.mediaUrl, accessToken, mediaType);
+          }
           if (mediaAsset) {
             mediaAssets.push(mediaAsset);
           }
         }
       }
     }
-
+    
     if (mediaAssets.length === 0 && mediaType !== 'Poll') {
       return await this.publishPostToLinkedInContentOnly(createPostDto, postId, post.content || 'Default content text', accessToken);
     } else {
-      return await this.publishPostToLinkedInContentWithMedia(post, mediaAssets, accessToken, createPostDto);
+      return await this.publishPostToLinkedInContentWithMedia(post, mediaAssets, accessToken, createPostDto);    
     }
   }
 
@@ -546,6 +556,47 @@ export class PostsService {
     }
   }
 
+  private async registerLinkedInDocument(mediaUrl: string, accessToken: string): Promise<string> {
+    try {
+      const personUrn = await this.getPersonUrn(accessToken);
+      Logger.log("Person URN:", personUrn);
+      const response = await axios.post(
+        "https://api.linkedin.com/rest/documents?action=initializeUpload", 
+        {
+          initializeUploadRequest: {
+            owner: personUrn
+          }
+        }, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+            'LinkedIn-Version': '202409',
+          },
+        }
+      );
+      Logger.log("initializeResponse:", response.data.value.document, response.data.value.uploadUrl);
+      const mediaResponse = await axios.get(mediaUrl, { responseType: 'arraybuffer' });
+      const documentUploadUrl = response.data.value.uploadUrl;
+      const documentAsset = response.data.value.document;
+      const documentResponse = await axios.put(documentUploadUrl, mediaResponse.data, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/octet-stream',
+          'Content-Length': mediaResponse.data.byteLength
+        }
+      });
+      Logger.log(`documentResponse: ${documentResponse.data}`);
+      return documentAsset;
+    } catch (error) {
+      this.logger.error('Error registering or uploading media to LinkedIn:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+      });
+      throw new BadRequestException('Failed to upload document to LinkedIn.');
+    }
+  }
+
   private async registerLinkedInMedia(mediaUrl: string, accessToken: string, mediaType: any): Promise<string> {
     try {
       const personUrn = await this.getPersonUrn(accessToken);
@@ -579,15 +630,18 @@ export class PostsService {
           },
         }
       );
+      console.log("1");
       const uploadUrl = registerResponse.data.value.uploadMechanism['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest'].uploadUrl;
       const asset = registerResponse.data.value.asset;
       const mediaResponse = await axios.get(mediaUrl, { responseType: 'arraybuffer' });
+      console.log("2");
       await axios.put(uploadUrl, mediaResponse.data, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': mediaType,
         },
       });
+      console.log("3");
       return asset;
     } catch (error) {
       this.logger.error('Error registering or uploading media to LinkedIn:', {
@@ -684,7 +738,7 @@ export class PostsService {
             ? 'DOCUMENT'
             : 'IMAGE';
 
-      if (mediaType === 'Poll') {
+      if (mediaType === 'Poll' || mediaType === 'Document') {
         // Log the type of poll to ensure it is an object
         this.logger.log('Poll Type:', typeof pollObject);
 
@@ -700,12 +754,19 @@ export class PostsService {
           },
           lifecycleState: 'PUBLISHED',
           isReshareDisabledByAuthor: false,
-          content: {
+          content: mediaType === 'Poll' ? {
             "poll": {
               ...pollObject,  // Spread the existing properties of poll
               "settings": {
                 "duration": "THREE_DAYS"
               }
+            }
+          }
+          :
+          {
+            "media": {
+              "title": post.content || '',
+              "id": mediaAssets[0]
             }
           }
         };
