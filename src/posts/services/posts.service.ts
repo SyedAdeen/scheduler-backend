@@ -876,47 +876,67 @@ export class PostsService {
     }
   }
 
-  async getPostsForUser(userId: number) {
+  async getPostsForUser(userId: number): Promise<Post[]> {
     const posts = await this.postRepository
-      .createQueryBuilder('post')
-      .leftJoinAndSelect('post.integration', 'integration')
-      .leftJoinAndSelect('post.postMedia', 'postMedia')
-      .leftJoinAndSelect('post.postHistory', 'postHistory')
-      .where('post.user_id = :userId', { userId })
-      .select([
-        'post.id',
-        'post.content',
-        'post.recurring',
-        'post.scheduled',
-        'post.cronFormat',
-        'integration.platform',
-        'integration.icon',
-        'postMedia.mediaUrl',
-      ])
-      .addSelect('SUM(CASE WHEN postHistory.success = true THEN 1 ELSE 0 END)', 'successTrueCount')
-      .addSelect('SUM(CASE WHEN postHistory.success = false THEN 1 ELSE 0 END)', 'successFalseCount')
-      .groupBy('post.id')
-      .addGroupBy('integration.platform')
-      .addGroupBy('integration.icon')
-      .addGroupBy('postMedia.mediaUrl')
-      .orderBy('post.id', 'DESC')  // Sort in descending order by post.id
-      .getRawMany();
-
-    return posts.map(post => {
-      // Determine recurring type and additional details
-      const recurringDetails = this.getRecurringDetails(post.post_cronFormat);
-
-      // Format history counts as "successTrueCount / successFalseCount"
-      const formattedHistoryCount = `${post.successTrueCount || 0}/${post.successFalseCount || 0}`;
-
-      return {
-        ...post,
-        recurringType: recurringDetails.type,
-        date_day: recurringDetails.date_day,
-        historyCount: formattedHistoryCount, // Format history counts as requested
-      };
-    });
+      .find({
+        where: {
+          user: {
+            id: userId
+          }
+        },
+        order: {
+          createdAt: "DESC"
+        },
+        relations: [
+          "integration",
+          "postMedia",
+          "postHistory"
+        ]
+      });
+    return posts.map(post => ({ ...post, recurringDetails: this.getRecurringDetails(post.cronFormat) }));
   }
+
+  // async getPostsForUser(userId: number) {
+  //   const posts = await this.postRepository
+  //     .createQueryBuilder('post')
+  //     .leftJoinAndSelect('post.integration', 'integration')
+  //     .leftJoinAndSelect('post.postMedia', 'postMedia')
+  //     .leftJoinAndSelect('post.postHistory', 'postHistory')
+  //     .where('post.user_id = :userId', { userId })
+  //     .select([
+  //       'post.id',
+  //       'post.content',
+  //       'post.recurring',
+  //       'post.scheduled',
+  //       'post.cronFormat',
+  //       'integration.platform',
+  //       'integration.icon',
+  //       'postMedia.mediaUrl',
+  //     ])
+  //     .addSelect('SUM(CASE WHEN postHistory.success = true THEN 1 ELSE 0 END)', 'successTrueCount')
+  //     .addSelect('SUM(CASE WHEN postHistory.success = false THEN 1 ELSE 0 END)', 'successFalseCount')
+  //     .groupBy('post.id')
+  //     .addGroupBy('integration.platform')
+  //     .addGroupBy('integration.icon')
+  //     .addGroupBy('postMedia.mediaUrl')
+  //     .orderBy('post.id', 'DESC')  // Sort in descending order by post.id
+  //     .getRawMany();
+
+  //   return posts.map(post => {
+  //     // Determine recurring type and additional details
+  //     const recurringDetails = this.getRecurringDetails(post.post_cronFormat);
+
+  //     // Format history counts as "successTrueCount / successFalseCount"
+  //     const formattedHistoryCount = `${post.successTrueCount || 0}/${post.successFalseCount || 0}`;
+
+  //     return {
+  //       ...post,
+  //       recurringType: recurringDetails.type,
+  //       date_day: recurringDetails.date_day,
+  //       historyCount: formattedHistoryCount, // Format history counts as requested
+  //     };
+  //   });
+  // }
 
   private getRecurringDetails(cronFormat: string) {
     if (!cronFormat) return { type: null, dayOfWeek: null, dateOfMonth: null };
