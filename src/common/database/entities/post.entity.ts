@@ -38,4 +38,7 @@ export class Post extends Base {
 
   @Column({ type: 'jsonb', nullable: true })
   metadata: Record<string, any>;  
+
+  @Column({ type: 'varchar', length: 50, default: 'text' }) 
+  postType: string;
 }

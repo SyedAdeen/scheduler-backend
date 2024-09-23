@@ -54,6 +54,10 @@ class PollDto {
 }
 
 export class CreatePostDto {
+  @ApiProperty({ description: "Timezone offset in minutes"})
+  @IsString()
+  timezoneOffset: number;
+
   @ApiProperty({ description: 'The content of the post' })
   @IsString()
   content: string;

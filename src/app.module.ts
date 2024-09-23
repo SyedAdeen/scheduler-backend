@@ -30,9 +30,6 @@ import { v2 as cloudinary } from 'cloudinary';
                     host: configService.get<string>('REDIS_HOST'),
                     port: configService.get<number>('REDIS_PORT'),
                     password: configService.get<string>('REDIS_PASSWORD'),
-                    tls: {
-                        rejectUnauthorized: false
-                    }
                     // username: configService.get<string>('REDIS_USERNAME'),
                     // password: configService.get<string>('REDIS_PASSWORD'),
                     // url: configService.get<string>('REDIS_URL'),                  
