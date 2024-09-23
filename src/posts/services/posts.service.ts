@@ -128,18 +128,17 @@ export class PostsService {
           if (isNaN(utcScheduledDate.getTime())) {
             throw new BadRequestException('Invalid date-time format for recurring scheduling.');
           }
-
           createPostDto.scheduled = new Date(utcScheduledDate.getTime() + createPostDto.timezoneOffset * 60000).toISOString();
         }
       }
-
 
       const post = this.postRepository.create({
         ...createPostDto,
         integration: { id: integrationId },
         user: { id: userId },
         status: 'Post Created',
-        metadata: pollObject
+        metadata: pollObject,
+        postType: mediaType
       });
 
       await this.postRepository.save(post);
@@ -353,10 +352,10 @@ export class PostsService {
         return await this.postContentToFacebook(postId, pageId, post.content, pageAccessToken, createPostDto.scheduled);
       case MediaType.IMAGE:
         const imageUrl = post.postMedia[0]?.mediaUrl; // Assuming a single image
-        return await this.postImageToFacebook(postId, pageId, imageUrl, post.content, pageAccessToken);
+          return await this.postImageToFacebook(postId, pageId, imageUrl, post.content, pageAccessToken, createPostDto.mediaType);
       case MediaType.MediaCarousel:
         this.logger.log("posting multiple images...", post.postMedia);
-        return await this.postMultipleImagesToFacebook(postId, pageId, post.postMedia.map(pm => pm.mediaUrl), post.content, pageAccessToken);
+        return await this.postMultipleImagesToFacebook(postId, pageId, post.postMedia.map(pm => pm.mediaUrl), post.content, pageAccessToken, createPostDto.mediaType);
       case MediaType.VIDEO:
         return await this.postVideoToFacebook(postId, pageId, post.postMedia[0]?.mediaUrl, post.content, pageAccessToken);
     }
@@ -428,7 +427,7 @@ export class PostsService {
     }
   }
 
-  private async postImageToFacebook(postId: number, pageId: string, imageUrl: string, message: string, accessToken: string, publish = true): Promise<{ status: string, post_id: string }> {
+  private async postImageToFacebook(postId: number, pageId: string, imageUrl: string, message: string, accessToken: string, mediaType:string, publish = true): Promise<{ status: string, post_id: string}> {
     const url = `https://graph.facebook.com/v20.0/${pageId}/photos`;
 
     const payload = {
@@ -442,7 +441,9 @@ export class PostsService {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       this.logger.log('Image posted successfully:', response.data);
-      await this.createPostHistory(postId, 'Published', `Image Published Successfully`, true);
+      if(mediaType==="Image"){
+        await this.createPostHistory(postId, 'Published', `Image Published Successfully`, true);
+      }
       return { status: 'Published', post_id: response.data.id };
     } catch (error) {
       this.logger.error('Error publishing image to Facebook:', error.response?.data);
@@ -451,9 +452,9 @@ export class PostsService {
     }
   }
 
-  private async postMultipleImagesToFacebook(postId: number, pageId: string, imageUrls: string[], message: string, accessToken: string) {
+  private async postMultipleImagesToFacebook(postId: number, pageId: string, imageUrls: string[], message: string, accessToken: string, mediaType:string) {
     this.logger.log("In postMultipleImagesToFacebook", imageUrls);
-    const imagePromises = imageUrls.map(imageUrl => this.postImageToFacebook(postId, pageId, imageUrl, message, accessToken, false));
+    const imagePromises = imageUrls.map(imageUrl => this.postImageToFacebook(postId, pageId, imageUrl, message, accessToken, mediaType, false));
     const images = await Promise.all(imagePromises);
     this.logger.log("imageIds:", images);
     const url = `https://graph.facebook.com/v20.0/${pageId}/feed`;
@@ -469,6 +470,7 @@ export class PostsService {
     
     try {
       const response = await axios.post(url, data);
+      await this.createPostHistory(postId, 'Published', `Media Carousel Published Successfully`, true);
       this.logger.log("response:", response.data);
     } catch (error) {
       this.logger.log("error:", {
@@ -664,18 +666,18 @@ export class PostsService {
           },
         }
       );
-      console.log("1");
+      this.logger.log("1");
       const uploadUrl = registerResponse.data.value.uploadMechanism['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest'].uploadUrl;
       const asset = registerResponse.data.value.asset;
       const mediaResponse = await axios.get(mediaUrl, { responseType: 'arraybuffer' });
-      console.log("2");
+      this.logger.log("2");
       await axios.put(uploadUrl, mediaResponse.data, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': mediaType,
         },
       });
-      console.log("3");
+      this.logger.log("3");
       return asset;
     } catch (error) {
       this.logger.error('Error registering or uploading media to LinkedIn:', {
