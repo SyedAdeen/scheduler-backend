@@ -14,6 +14,7 @@
 - **Get Post Types of Integration** `/integrations/:integrationId/post-types`
 - **Post Method to create posts** `/posts`
 - **Get Method to get user posts** `/posts`
+- **Get Dashboard to get user created post counts** `/dashboard/:integrationId`
 - **Swagger:** `/docs`
 
 ### Steps to Start the Project:
