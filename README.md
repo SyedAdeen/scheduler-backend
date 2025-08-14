@@ -17,6 +17,16 @@
 - **Get Dashboard to get user created post counts** `/dashboard/:integrationId`
 - **Swagger:** `/docs`
 
+**NestJS 10** (TypeScript)
+## Database
+**PostgreSQL** (via TypeORM)
+## Caching & Queues
+**Redis** + **Bull**
+## Authentication
+**JWT** + **Google OAuth2**
+## File Storage
+**Cloudinary** + **Multer**
+
 ### Steps to Start the Project:
 
 1. **Clone the Project:**
